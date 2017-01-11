@@ -1,5 +1,5 @@
 {
-  "command":"/home/ops/verdi/ops/hysds/hysds/lib/job_iterator.py",
+  "command":"/home/ops/verdi/ops/lightweight-jobs/job_iterator.py",
   "disk_usage":"1MB",
   "params": [
     {
@@ -57,4 +57,3 @@
     }
   ]
 }
-
