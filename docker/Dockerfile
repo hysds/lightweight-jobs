@@ -1,12 +1,18 @@
-FROM hysds/centos:7
+FROM hysds/pge-base:latest-v2
+
+MAINTAINER mstarch "Michael.D.Starch@jpl.nasa.gov"
+LABEL description="Job Iterator Internal Job"
 
 ARG id
 ARG gid
-
-# create ops user/group syncing uid and gid with host
-RUN set -ex \
- && groupadd -r ops -g ${gid} \
- && useradd -u ${id} -r -g ops -d /home/ops -s /bin/bash -m ops
+#Change UID and GID from build
+USER root
+RUN set -ex && \
+  usermod -u ${id} ops && \
+  groupmod -g ${gid} ops && \
+  chown -R ops:ops /home/ops/ /data && \
+  usermod -g ${gid} ops
+USER ops
 
 # create work directory
 RUN set -ex \
