@@ -1,16 +1,19 @@
-import copy, json
-import logger
+#!/bin/env python
+import copy, json, traceback
+import logging
 
 import hysds_commons.request_utils
 import hysds_commons.hysds_io_utils
-import hysds_commons.mozart_urls
+import hysds_commons.mozart_utils
 
 #TODO: Setup logger for this job here.  Should log to STDOUT or STDERR as this is a job
-logger = logger.basic_config()
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("hysds")
 
-def job_iterator(es_url,es_index,es_wiring_url,wiring_name,username,query,queue,priority,type,tags,kwargs):
+def job_iterator(mozart_url,es_url,es_index,es_wiring_url,wiring_name,username,query,queue,priority,job_type,tags,kwargs):
     '''
     Iterator used to iterate across a query result and submit jobs for every hit
+    @param mozart_url - Mozart URL to hit with submission
     @param es_url - ElasticSearch URL to hit with query
     @param es_index - Index in ElasticSearch to hit with query (usually an alias)
     @param es_wiring_url - ElasticSearch to hit with query for wirings
@@ -19,36 +22,51 @@ def job_iterator(es_url,es_index,es_wiring_url,wiring_name,username,query,queue,
     @param query - query to post to ElasticSearch and whose result will be iterated, JSON sting encoded
     @param queue - queue to submit to
     @param priority - priority of jobs submitted
-    @param type - type of jobs to submit
+    @param job_type - type of jobs to submit
     @param tags - tags to attach to submitted jobs. In JSON string encoding
     @param kwargs - key-word args to match to HySDS IO
     '''
-    #Setup and scroll ES    
-    start_url = "{0}/{1}/_search".format(es_url,es_index)
-    scroll_url = "{0}/_search".format(es_url,es_index)
-
-    results = request_utils.post_scrolled_json_responses(start_url,scroll_url,data=query,logger=logger)
-
     #Accumulators variables
     ids = []
     error_count = 0
     errors = []
-
-    # Passthough args
-    passthrough = {"name":tags[0],"query":query,"username":username}
+    
+    #Read in JSON formatted args and setup passthrough
+    tags = json.loads(tags)
+    queryobj = {"query":json.loads(query)}
+    passthrough = {"name":tags[0],"query":query,"username":username,"priority":priority,"type":job_type,"queue":queue}
     # Get wiriing
     wiring = hysds_commons.hysds_io_utils.get_hysds_io(es_wiring_url,wiring_name,logger=logger)
-
+    
+    #Testing:
+    wiring["params"].append({"name":"query","from":"passthrough"})
+    
+    #Is this a single submission, or per-dataset type
+    single = False
+    for param in wiring["params"]:
+        if param["from"].startswith("dataset_json"):
+            single = False
+            break
+        if param["name"] == "query" and param["from"] == "passthrough":
+            single = True
+    #Get results
+    results = [{"_id":"Global"}]
+    if not single:
+        #Scroll product results
+        start_url = "{0}/{1}/_search".format(es_url,es_index)
+        scroll_url = "{0}/_search".format(es_url,es_index)
+        results = hysds_commons.request_utils.post_scrolled_json_responses(start_url,scroll_url,data=json.dumps(queryobj),logger=logger)
     #This is the common data for all jobs, and will be copied for each individual submission
-    base_data = {"queue":queue,"priority":priority,"type":job_type,"tags":tags}
+    base_data = {"queue":queue,"priority":priority,"type":job_type,"tags":json.dumps(tags)}
 
     #Iterator loop
     for product in results:
         try:
+            logger.info("Running: '{0}' on '{1}' for '{2}'".format(job_type,product["_id"],tags[0]))
             data = copy.copy(base_data)
             params = get_params_for_submission(wiring,kwargs,passthrough,product,base_data) 
             data["params"] = json.dumps(params)
-            ids.append(hysds_commons.mozart_utils.submit_job(data))
+            ids.append(hysds_commons.mozart_utils.submit_job(mozart_url,data))
         except Exception as e:
             error_count = error_count + 1
             if not str(e) in errors:
@@ -56,7 +74,7 @@ def job_iterator(es_url,es_index,es_wiring_url,wiring_name,username,query,queue,
             logger.warning("Failed to submit jobs: {0}:{1}".format(type(e),str(e)))
             logger.warning(traceback.format_exc())
         if error_count > 0:
-            logger.severe("Failed to submit: {0} of {1} jobs. {2}".format(error_count,len(results)," ".join(errors)))
+            logger.error("Failed to submit: {0} of {1} jobs. {2}".format(error_count,len(results)," ".join(errors)))
 def get_params_for_submission(wiring,kwargs,passthrough=None,product=None,params={}):
     '''
     Get params for submission for HySDS/Tosca style workflow
@@ -67,7 +85,7 @@ def get_params_for_submission(wiring,kwargs,passthrough=None,product=None,params
     params = {}
     for wire in wiring["params"]:
         if not wire["name"] in params:
-            val = get_inputs(wire,kwargs,rule,product)
+            val = get_inputs(wire,kwargs,passthrough,product)
             params[wire["name"]] = val
     return params
 def get_inputs(param,kwargs,rule=None,product=None):
