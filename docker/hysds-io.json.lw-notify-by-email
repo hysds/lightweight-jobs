@@ -13,8 +13,8 @@
       "from": "submitter"
     },
     {
-      "name": "rule_name",
-      "from": "submitter"
+      "name": "name",
+      "from": "passthrough"
     }
 	]
 }

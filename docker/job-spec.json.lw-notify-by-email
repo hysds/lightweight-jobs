@@ -15,7 +15,7 @@
       "destination": "positional"
     },
     {
-      "name": "rule_name",
+      "name": "name",
       "destination": "positional"
     }
 	]
