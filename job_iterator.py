@@ -38,9 +38,6 @@ def job_iterator(mozart_url,es_url,es_index,es_wiring_url,wiring_name,username,q
     # Get wiriing
     wiring = hysds_commons.hysds_io_utils.get_hysds_io(es_wiring_url,wiring_name,logger=logger)
     
-    #Testing:
-    wiring["params"].append({"name":"query","from":"passthrough"})
-    
     #Is this a single submission, or per-dataset type
     single = False
     for param in wiring["params"]:
