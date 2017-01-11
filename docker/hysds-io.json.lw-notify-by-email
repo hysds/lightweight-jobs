@@ -1,0 +1,20 @@
+{
+  "params" : [
+    {
+      "name": "id",
+      "from": "dataset_jpath:objectid"
+    },
+    {
+      "name": "url",
+      "from": "dataset_jpath:urls"
+    },
+    {
+      "name": "emails",
+      "from": "submitter"
+    },
+    {
+      "name": "rule_name",
+      "from": "submitter"
+    }
+	]
+}
