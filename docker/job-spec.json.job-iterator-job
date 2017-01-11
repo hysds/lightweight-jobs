@@ -1,0 +1,59 @@
+{
+  "command":"/home/ops/verdi/ops/lightweight-jobs/job_iterator.py",
+  "disk_usage":"1MB",
+  "params": [
+    {
+        "name":"es_url",
+        "destination": "context"
+    },
+    {
+        "name":"es_index",
+        "destination": "context"
+    },
+    {
+        
+        "name":"es_wiring_url",
+        "destination": "context"
+    },
+    {
+    
+        "name":"wiring_name",
+        "destination": "context"
+    },
+    {
+
+        "name":"username",
+        "destination": "context"
+    },
+    {
+
+        "name":"query",
+        "destination": "context"
+    },
+    {
+
+        "name":"queue",
+        "destination": "context"
+    },
+    {
+
+        "name":"priority",
+        "destination": "context"
+    },
+    {
+
+        "name":"job_type",
+        "destination": "context"
+    },
+    {
+
+        "name":"tags",
+        "destination": "context"
+    },
+    {
+
+        "name":"kwargs",
+        "destination": "context"
+    }
+  ]
+}
