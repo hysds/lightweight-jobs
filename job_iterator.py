@@ -38,9 +38,6 @@ def job_iterator(mozart_url,es_url,es_index,es_wiring_url,wiring_name,username,q
     # Get wiriing
     wiring = hysds_commons.hysds_io_utils.get_hysds_io(es_wiring_url,wiring_name,logger=logger)
     
-    #Testing:
-    wiring["params"].append({"name":"query","from":"passthrough"})
-    
     #Is this a single submission, or per-dataset type
     single = False
     for param in wiring["params"]:
@@ -86,8 +83,25 @@ def get_params_for_submission(wiring,kwargs,passthrough=None,product=None,params
     for wire in wiring["params"]:
         if not wire["name"] in params:
             val = get_inputs(wire,kwargs,passthrough,product)
-            params[wire["name"]] = val
+            params[wire["name"]] = run_lambda(wire,val)
     return params
+def run_lambda(wire, val):
+    '''
+    Runs the lambda key as a lambda function with 1 arg, the previous value
+    @param wire - wiring spec to check for lambda
+    @param val
+    '''
+    if "lambda" in wire:
+        try:
+            if not wire["lambda"].startswith("lambda:") and not wire["lambda"].startswith("lambda "):
+                raise Exceion("[ERROR] Failed to run lambda function, must be lambda expression taking 0 or 1 inputs")
+            import functools
+            fn = eval(wire["lambda"],{"functools":functools},{})
+            val = fn(val)
+        except Exception as e:
+            raise Exception("[ERROR] Failed to run lambda function to fill {0}. {1}:{2}".format(wire["name"],type(e),e))
+    return val
+
 def get_inputs(param,kwargs,rule=None,product=None):
     '''
     Update parameter to add in a value for the param
@@ -120,7 +134,7 @@ def process_xpath(xpath,trigger):
     @param xpath - xpath location in trigger
     @param trigger - trigger metadata to extract XPath
     '''
-    ret = trigger
+    ret = trigger["_source"]
     parts = xpath.split(".")
     for part in parts:
         if ret is None or part == "":
