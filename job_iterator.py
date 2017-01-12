@@ -93,8 +93,10 @@ def run_lambda(wire, val):
     '''
     if "lambda" in wire:
         try:
+            if not wire["lambda"].startswith("lambda:") and not wire["lambda"].startswith("lambda "):
+                raise Exceion("[ERROR] Failed to run lambda function, must be lambda expression taking 0 or 1 inputs")
             import functools
-            fn = eval(wire["lambda")
+            fn = eval(wire["lambda"],{"functools":functools},{})
             val = fn(val)
         except Exception as e:
             raise Exception("[ERROR] Failed to run lambda function to fill {0}. {1}:{2}".format(wire["name"],type(e),e))

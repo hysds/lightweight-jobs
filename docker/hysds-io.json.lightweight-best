@@ -3,7 +3,7 @@
     {
       "name": "echo_var",
       "from": "dataset_jpath:urls",
-      "lambda": "lambda val: functools.reduce(lambda k,i: i if i.startswith('s3') or k is None else k,val,None)"
+      "lambda": "lambda val: functools.reduce(lambda k,i: i if not i.startswith('http') or k is None else k,val,None)"
     }
   ]
 }
