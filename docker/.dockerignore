@@ -1,0 +1,2 @@
+# changes to the docker/ directory shouldn't force a container rebuild
+*/docker*

@@ -1,5 +1,5 @@
 {
-  "command":"/home/ops/verdi/ops/lightweight-jobs/purge_products.sh",
+  "command":"/home/ops/verdi/ops/lightweight-jobs/purge-products.sh",
   "disk_usage":"3GB",
   "params" : [
     {
