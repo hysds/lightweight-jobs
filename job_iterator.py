@@ -83,7 +83,7 @@ def get_params_for_submission(wiring,kwargs,passthrough=None,product=None,params
     for wire in wiring["params"]:
         if not wire["name"] in params:
             val = get_inputs(wire,kwargs,passthrough,product)
-            params[wire["name"]] = val
+            params[wire["name"]] = run_lambda(wire,val)
     return params
 def run_lambda(wire, val):
     '''
@@ -134,7 +134,7 @@ def process_xpath(xpath,trigger):
     @param xpath - xpath location in trigger
     @param trigger - trigger metadata to extract XPath
     '''
-    ret = trigger
+    ret = trigger["_source"]
     parts = xpath.split(".")
     for part in parts:
         if ret is None or part == "":
