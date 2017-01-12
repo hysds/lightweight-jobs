@@ -85,6 +85,21 @@ def get_params_for_submission(wiring,kwargs,passthrough=None,product=None,params
             val = get_inputs(wire,kwargs,passthrough,product)
             params[wire["name"]] = val
     return params
+def run_lambda(wire, val):
+    '''
+    Runs the lambda key as a lambda function with 1 arg, the previous value
+    @param wire - wiring spec to check for lambda
+    @param val
+    '''
+    if "lambda" in wire:
+        try:
+            import functools
+            fn = eval(wire["lambda")
+            val = fn(val)
+        except Exception as e:
+            raise Exception("[ERROR] Failed to run lambda function to fill {0}. {1}:{2}".format(wire["name"],type(e),e))
+    return val
+
 def get_inputs(param,kwargs,rule=None,product=None):
     '''
     Update parameter to add in a value for the param
