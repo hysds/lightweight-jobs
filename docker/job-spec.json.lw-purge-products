@@ -5,6 +5,6 @@
     {
       "name": "query",
       "destination": "positional"
-    },
+    }
    ]
 }
