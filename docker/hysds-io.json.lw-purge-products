@@ -1,0 +1,8 @@
+{
+  "params" : [
+    {
+      "name": "query",
+      "from": "passthrough"
+    }
+  ]
+}
