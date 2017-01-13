@@ -34,7 +34,9 @@ def job_iterator(mozart_url,es_url,es_index,es_wiring_url,wiring_name,username,q
     #Read in JSON formatted args and setup passthrough
     tags = json.loads(tags)
     queryobj = {"query":json.loads(query)}
+    kwargs = json.loads(kwargs)
     passthrough = {"name":tags[0],"query":query,"username":username,"priority":priority,"type":job_type,"queue":queue}
+
     # Get wiriing
     wiring = hysds_commons.hysds_io_utils.get_hysds_io(es_wiring_url,wiring_name,logger=logger)
     
@@ -70,8 +72,9 @@ def job_iterator(mozart_url,es_url,es_index,es_wiring_url,wiring_name,username,q
                 errors.append(str(e))
             logger.warning("Failed to submit jobs: {0}:{1}".format(type(e),str(e)))
             logger.warning(traceback.format_exc())
-        if error_count > 0:
-            logger.error("Failed to submit: {0} of {1} jobs. {2}".format(error_count,len(results)," ".join(errors)))
+    if error_count > 0:
+        logger.error("Failed to submit: {0} of {1} jobs. {2}".format(error_count,len(results)," ".join(errors)))
+        raise Exception("Job Submitter Job failed to submit all actions")
 def get_params_for_submission(wiring,kwargs,passthrough=None,product=None,params={}):
     '''
     Get params for submission for HySDS/Tosca style workflow
