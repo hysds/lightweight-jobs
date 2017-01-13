@@ -137,7 +137,7 @@ def process_xpath(xpath,trigger):
     @param xpath - xpath location in trigger
     @param trigger - trigger metadata to extract XPath
     '''
-    ret = trigger["_source"]
+    ret = trigger
     parts = xpath.split(".")
     for part in parts:
         if ret is None or part == "":
