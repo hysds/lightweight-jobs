@@ -1,0 +1,10 @@
+{
+  "command":"/home/ops/verdi/ops/lightweight-jobs/purge.sh",
+  "disk_usage":"3GB",
+  "params" : [
+    {
+      "name": "query",
+      "destination": "positional"
+    }
+   ]
+}

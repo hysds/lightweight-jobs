@@ -2,11 +2,11 @@
   "params" : [
     {
       "name": "id",
-      "from": "dataset_jpath:objectid"
+      "from": "dataset_jpath:_source.objectid"
     },
     {
       "name": "url",
-      "from": "dataset_jpath:urls"
+      "from": "dataset_jpath:_source.urls"
     },
     {
       "name": "emails",
