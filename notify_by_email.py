@@ -103,10 +103,11 @@ def get_source(es_url, query_idx, objectid):
         },
         "query": {
             "term": {
-                "id": objectid
+                "_id": objectid
             }
         }
     }
+    print 'get_source debug:', '%s/%s/_search',es_url,"    ", query_idx,'    ',json.dumps(query)
     r = requests.post('%s/%s/_search' % (es_url, query_idx), data=json.dumps(query))
     r.raise_for_status()
     result = r.json()
@@ -118,7 +119,7 @@ def get_cities(src):
     """Return list of cities."""
 
     cities = []
-    for city in src['city']:
+    for city in src.get('city',[]):
         cities.append("%s, %s" % (city.get('name', ''), city.get('admin1_name', '')))
     return cities
 
@@ -205,7 +206,7 @@ if __name__ == "__main__":
                     attachments[small_img] = r.content
     else: body += "\n\n"
     body += "You may access the product here:\n\n%s" % url
-    facet_url = get_facetview_link(facetview_url, objectid, src.get('system_version', None))
+    facet_url = get_facetview_link(facetview_url, objectid, None if src is None else src.get('system_version', None))
     if facet_url is not None:
         body += "\n\nYou may view this product in FacetView here:\n\n%s" % facet_url
         body += "\n\nNOTE: You may have to cut and paste the FacetView link into your "

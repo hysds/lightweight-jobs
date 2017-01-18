@@ -3,6 +3,7 @@ import json
 import logging
 import sys
 import hysds_commons.request_utils
+import hysds_commons.metadata_rest_utils
 import osaka.main
 from hysds.celery import app
 
@@ -28,7 +29,7 @@ def purge_products(query):
     scroll_url = "{0}/_search".format(es_url,es_index)
     
     results = hysds_commons.request_utils.post_scrolled_json_responses(start_url,scroll_url,data=json.dumps(query),logger=logger)
-
+    print results
     
     for result in results:
     	es_type = result["_type"]
@@ -44,7 +45,7 @@ def purge_products(query):
 	print 'paramater being passed to osaka.main.rmall: ',best
 	osaka.main.rmall(best)
 	#removing the metadata
-	metadata_rest_utils.remove_metadata(es_url,index,es_type,ident,logger)
+	hysds_commons.metadata_rest_utils.remove_metadata(es_url,index,es_type,ident,logger)
 
 
 if __name__ == "__main__":
