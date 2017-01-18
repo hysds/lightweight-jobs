@@ -1,7 +1,7 @@
 FROM hysds/pge-base:latest-v2
 
-MAINTAINER mstarch "Michael.D.Starch@jpl.nasa.gov"
-LABEL description="Job Iterator Internal Job"
+MAINTAINER malarout "Namrata.Malarout@jpl.nasa.gov"
+LABEL description="Lightweight System Jobs"
 
 ARG id
 ARG gid
@@ -12,7 +12,6 @@ RUN set -ex && \
   groupmod -g ${gid} ops && \
   chown -R ops:ops /home/ops/ /data && \
   usermod -g ${gid} ops
-USER ops
 
 # create work directory
 RUN set -ex \
