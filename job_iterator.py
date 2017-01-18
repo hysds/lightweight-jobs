@@ -73,4 +73,4 @@ if __name__ == "__main__":
     context = {}
     with open("_context.json","r") as f:
         context = json.load(f)
-    job_iterator(context["submitter"],json.loads(context["subbmitted_rule"]))
+    job_iterator(context["submitter"],json.loads(context["submitter_rule"]))
