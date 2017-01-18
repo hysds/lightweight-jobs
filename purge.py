@@ -42,9 +42,9 @@ def purge_products(query):
     
    	#making osaka call to delete product
 	print 'paramater being passed to osaka.main.rmall: ',best
-	#osaka.main.rmall(best)
+	osaka.main.rmall(best)
 	#removing the metadata
-	#metadata_rest_utils.remove_metadata(es_url,index,es_type,ident,logger)
+	metadata_rest_utils.remove_metadata(es_url,index,es_type,ident,logger)
 
 
 if __name__ == "__main__":

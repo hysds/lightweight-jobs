@@ -17,6 +17,10 @@
     {
       "name": "name",
       "destination": "positional"
+    },
+    {
+      "name": "component",
+      "destination": "positional"
     }
 	]
 }

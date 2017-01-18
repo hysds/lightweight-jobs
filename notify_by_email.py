@@ -7,7 +7,7 @@ from email.MIMEBase import MIMEBase
 from email.Header import Header
 from email.Utils import parseaddr, formataddr, COMMASPACE, formatdate
 from email import Encoders
-
+from hysds.celery import app
 
 def send_email(sender, cc_recipients, bcc_recipients, subject, body, attachments=None):
     """Send an email.
@@ -161,16 +161,25 @@ if __name__ == "__main__":
     settings_file = os.path.normpath(
                         os.path.join(
                             os.path.dirname(os.path.realpath(__file__)),
-                        '..', 'settings.json')
+                        'settings.json')
                     )
     settings = json.load(open(settings_file))
-    es_url = settings['ES_URL']
-    query_idx = settings['QUERY_INDEX']
-    facetview_url = settings['FACETVIEW_URL']
+   
     objectid = sys.argv[1]
     url = sys.argv[2]
     emails = sys.argv[3]
     rule_name = sys.argv[4]
+    component = sys.argv[5]
+
+    if component=="mozart":
+	es_url = app.conf["JOB_ES_URL"]
+	query_idx = app.conf["STATUS_ALIAS"]
+	facetview_url = app.conf["MOZART_URL"]
+    elif component=="tosca":
+	es_url = app.conf["GRQ_ES_URL"]
+	query_idx = app.conf["DATASET_ALIAS"]
+	facetview_url = app.conf["GRQ_URL"]
+
     cc_recipients = [i.strip() for i in emails.split(',')]
     bcc_recipients = []
     subject = "[monitor] (notify_by_email:%s) %s" % (rule_name, objectid)
