@@ -20,9 +20,8 @@ RUN set -ex \
  && chown -R ops:ops /data
 
 # provision lightweight-jobs PGE
-COPY . /home/ops/verdi/ops/lightweight-jobs
-
 USER ops
+COPY . /home/ops/verdi/ops/lightweight-jobs
 
 # set entrypoint
 WORKDIR /home/ops
