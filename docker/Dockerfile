@@ -19,6 +19,7 @@ RUN set -ex \
  && chmod -R 755 /data \
  && chown -R ops:ops /data
 
+RUN yum install -y sendmail && echo "127.0.0.1 localhost localhost.localdomain" >> /etc/hosts
 # provision lightweight-jobs PGE
 USER ops
 COPY . /home/ops/verdi/ops/lightweight-jobs
