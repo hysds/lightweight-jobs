@@ -28,17 +28,17 @@ def job_iterator(component,rule):
     errors = []
     
     #Read config from "origin"
-    es_url, es_index, = lib.get_component_configuration(component) 
+    es_url, es_index, ignore1 = lib.get_component_configuration.get_component_config(component) 
 
     #Read in JSON formatted args and setup passthrough
     queryobj = {"query":rule["query"]}
 
     # Get wiriing
-    hysdsio = hysds_commons.hysds_io_utils.get_hysds_io(es_url,rule["type"],logger=logger)
+    hysdsio = hysds_commons.hysds_io_utils.get_hysds_io(es_url,rule["job_type"],logger=logger)
     
     #Is this a query_only submission, or per-dataset type
     query_only = False
-    for param in wiring["params"]:
+    for param in hysdsio["params"]:
         if param["from"].startswith("dataset_json"):
             query_only = False
             break
