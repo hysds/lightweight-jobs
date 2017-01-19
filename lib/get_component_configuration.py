@@ -1,4 +1,4 @@
-from hysds import app
+from hysds.celery import app
 
 def get_component_config(component):
     '''
