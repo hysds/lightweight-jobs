@@ -22,8 +22,8 @@ RUN set -ex \
 # provision lightweight-jobs PGE
 COPY . /home/ops/verdi/ops/lightweight-jobs
 
+USER ops
 
 # set entrypoint
-USER ops
 WORKDIR /home/ops
 CMD ["/bin/bash", "--login"]
