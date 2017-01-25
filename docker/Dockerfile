@@ -20,6 +20,7 @@ RUN set -ex \
  && chown -R ops:ops /data
 
 # provision lightweight-jobs PGE
+RUN yum install -y postfix
 USER ops
 COPY . /home/ops/verdi/ops/lightweight-jobs
 
