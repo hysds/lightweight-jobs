@@ -54,6 +54,12 @@ if __name__ == "__main__":
     '''
     #encoding to a JSON object
     query_obj = {}
-    query_obj['query'] = json.loads(sys.argv[1])
+    #dec = sys.argv[1].replace("u'\"'\"'","'")
+    #decoded_inp = dec.replace("'\"'\"'","'")
+    decoded_string = sys.argv[1].decode('string_escape')
+    dec = decoded_string.replace('u""','"')
+    decoded_inp = dec.replace('""','"')
+    print(decoded_inp)
+    query_obj['query'] = json.loads(decoded_inp)
     purge_products(query_obj)
 
