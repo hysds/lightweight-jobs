@@ -21,7 +21,6 @@ RUN set -ex \
 
 
 # provision lightweight-jobs PGE
-RUN yum install -y postfix
 USER ops
 COPY . /home/ops/verdi/ops/lightweight-jobs
 
