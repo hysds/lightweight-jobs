@@ -5,27 +5,28 @@ source $HOME/verdi/bin/activate
 BASE_PATH=$(dirname "${BASH_SOURCE}")
 
 # check args
-if [ "$#" -eq 2 ]; then
+if [ "$#" -eq 5 ]; then
   query=$1
-  component=$2
+  id=$2
+  url=$3
+  emails=$4
+  rule_name=$5
+  
 else
   echo "Invalid number or arguments ($#) $*" 1>&2
   exit 1
 fi
 
-# purge products
+# generate wget scripy and email
 echo "##########################################" 1>&2
-echo -n "Purging products: " 1>&2
+echo -n "Generating wget script: " 1>&2
 date 1>&2
-python $BASE_PATH/purge.py "$query" "$component" > purge.log 2>&1
+python $BASE_PATH/wget.py "$query" > wget.log 2>&1
 STATUS=$?
-echo -n "Finished purging products: " 1>&2
+echo -n "Finished with wget script: " 1>&2
 date 1>&2
 if [ $STATUS -ne 0 ]; then
-  echo "Failed to purge products." 1>&2
-  cat purge.log 1>&2
-  echo "{}"
+  echo "Failed to send wget script." 1>&2
+  cat wget.log 1>&2
   exit $STATUS
 fi
-
-exit 0

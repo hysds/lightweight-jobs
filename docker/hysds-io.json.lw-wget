@@ -1,0 +1,24 @@
+{
+  "params" : [
+    {
+      "name": "query",
+      "from": "passthrough"
+    },
+    {
+      "name": "id",
+      "from": "dataset_jpath:_source.objectid"
+    },
+    {
+      "name": "url",
+      "from": "dataset_jpath:_source.urls"
+    },
+    {
+      "name": "emails",
+      "from": "submitter"
+    },
+    {
+      "name": "name",
+      "from": "passthrough"
+    }
+  ]
+}

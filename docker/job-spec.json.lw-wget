@@ -1,0 +1,26 @@
+{
+ "command":"/home/ops/verdi/ops/lightweight-jobs/wget.sh",
+  "disk_usage":"3GB",
+  "params" : [
+    {
+      "name": "query",
+      "destination": "positional"
+    },
+    {
+      "name": "id",
+      "destination": "positional"
+    },
+    {
+      "name": "url",
+      "destination": "positional"
+    },
+    {
+      "name": "emails",
+      "destination": "positional"
+    },
+    {
+      "name": "name",
+      "destination": "positional"
+    }
+   ]
+}

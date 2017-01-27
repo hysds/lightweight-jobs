@@ -18,7 +18,7 @@ def send_email(sender, cc_recipients, bcc_recipients, subject, body, attachments
     non-ASCII characters.
 
     The email will be properly MIME encoded and delivered though SMTP to
-    localhost port 25.  This is easy to change if you want something different.
+    172.17.0.1.  This is easy to change if you want something different.
 
     The charset of the email will be the first one out of US-ASCII, ISO-8859-1
     and UTF-8 that can represent all the characters occurring in the email.
@@ -86,8 +86,8 @@ def send_email(sender, cc_recipients, bcc_recipients, subject, body, attachments
     #print "#" * 80
     #print msg.as_string()
     
-    # Send the message via SMTP to localhost:25
-    smtp = SMTP("localhost")
+    # Send the message via SMTP to docker host
+    smtp = SMTP("172.17.0.1")
     smtp.sendmail(sender, recipients, msg.as_string())
     smtp.quit()
 

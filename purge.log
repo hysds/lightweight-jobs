@@ -1,0 +1,6 @@
+INFO:requests.packages.urllib3.connectionpool:Starting new HTTP connection (1): 128.149.127.190
+DEBUG:requests.packages.urllib3.connectionpool:"POST /grq/_search?search_type=scan&scroll=10m&size=100 HTTP/1.1" 200 3263
+INFO:requests.packages.urllib3.connectionpool:Starting new HTTP connection (1): 128.149.127.190
+DEBUG:requests.packages.urllib3.connectionpool:"POST /_search/scroll?scroll=10m HTTP/1.1" 200 171
+{"bool": {"must": [{"term": {"dataset.raw": "incomng"}}]}}
+[]

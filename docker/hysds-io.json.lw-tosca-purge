@@ -3,6 +3,11 @@
     {
       "name": "query",
       "from": "passthrough"
+    },
+    {
+      "name": "component",
+      "from": "value",
+      "value": "tosca"
     }
   ]
 }

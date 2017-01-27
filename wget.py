@@ -1,8 +1,8 @@
-import json, requests, types, re
+import json, requests, types, re, getpass
 from flask import jsonify, Blueprint, request, Response, render_template, make_response
 from flask.ext.login import login_required
 from pprint import pformat
-
+from notify_by_email import send_email
 from tosca import app
 
 import boto3
@@ -56,6 +56,9 @@ def wget_script(dataset=None):
     scan_result = r.json()
     count = scan_result['hits']['total']
     scroll_id = scan_result['_scroll_id']
+    # malarout: adding the call to stream_wget.
+    wget_result = stream_wget(scroll_id, source)
+    return wget_result
 
     # stream output a page at a time for better performance and lower memory footprint
 def stream_wget(scroll_id, source):
@@ -110,8 +113,8 @@ def stream_wget(scroll_id, source):
                         yield "%s --cut-dirs=%d %s/\n" % (wget_cmd, cut_dirs, url)
                         break
 
-    headers = {'Content-Disposition': 'attachment; filename=wget.sh'}
-    return Response(stream_wget(scroll_id, source), headers=headers, mimetype="text/plain")
+        headers = {'Content-Disposition': 'attachment; filename=wget.sh'}
+        return Response(stream_wget(scroll_id, source), headers=headers, mimetype="text/plain")
 
 def get_s3_files(url):
         files = []
@@ -130,3 +133,26 @@ def get_s3_files(url):
                         folder = parsed_url.scheme + "://" + parsed_url.hostname + '/' + result.get('Prefix')[:-1]
                         files.extend(get_s3_files(folder))
         return files
+
+if __name__ == "__main__":
+    '''
+    Main program of wget_script
+    '''
+    #encoding to a JSON object
+    query = json.loads(sys.argv[1])
+    objectid = sys.argv[2]
+    url = sys.argv[3]
+    emails = sys.argv[4]
+    rule_name = sys.argv[5]
+  
+    # getting the script
+    result = wget_script(query)
+    # now email the query
+    cc_recipients = [i.strip() for i in emails.split(',')]
+    bcc_recipients = []
+    subject = "[monitor] (wget_script:%s) %s" % (rule_name, objectid)
+    body = "Product with id %s was ingested." % objectid
+    body += "\n\nYou can use this wget script to download products:\n\n%s" % result
+    attachments = None
+    notify_by_email.send_email(getpass.getuser(), cc_recipients, bcc_recipients, subject, body, attachments=attachments)
+   
