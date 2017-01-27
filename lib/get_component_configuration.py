@@ -6,7 +6,7 @@ def get_component_config(component):
     @param component - component 
     '''
     if component=="mozart":
-        es_url = app.conf["JOB_ES_URL"]
+        es_url = app.conf["JOBS_ES_URL"]
         query_idx = app.conf["STATUS_ALIAS"]
         facetview_url = app.conf["MOZART_URL"]
     elif component=="tosca":
