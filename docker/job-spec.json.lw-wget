@@ -1,6 +1,7 @@
 {
  "command":"/home/ops/verdi/ops/lightweight-jobs/wget.sh",
-  "disk_usage":"3GB",
+ "imported_worker_files":{"/home/ops/.aws":"/home/ops/.aws"}, 
+ "disk_usage":"3GB",
   "params" : [
     {
       "name": "query",

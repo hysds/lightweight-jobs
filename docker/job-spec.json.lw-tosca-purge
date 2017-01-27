@@ -1,5 +1,6 @@
 {
   "command":"/home/ops/verdi/ops/lightweight-jobs/purge.sh",
+  "imported_worker_files":{"/home/ops/.aws":"/home/ops/.aws"},
   "disk_usage":"3GB",
   "params" : [
     {

@@ -1,0 +1,10 @@
+{
+  "command":"/home/ops/verdi/ops/lightweight-jobs/retry_job.sh",
+  "disk_usage":"3GB",
+  "params" : [
+    {
+      "name": "job",
+      "destination": "context"
+    }
+        ]
+}

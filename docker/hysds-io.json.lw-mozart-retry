@@ -1,0 +1,8 @@
+{
+  "params" : [
+    {
+      "name": "job",
+      "from": "dataset_jpath:_source.job"
+    }
+        ]
+}

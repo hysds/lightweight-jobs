@@ -8,6 +8,7 @@ from email.Header import Header
 from email.Utils import parseaddr, formataddr, COMMASPACE, formatdate
 from email import Encoders
 from hysds.celery import app
+from hysds_commons.net_utils import get_container_host_ip
 
 def send_email(sender, cc_recipients, bcc_recipients, subject, body, attachments=None):
     """Send an email.
@@ -87,7 +88,8 @@ def send_email(sender, cc_recipients, bcc_recipients, subject, body, attachments
     #print msg.as_string()
     
     # Send the message via SMTP to docker host
-    smtp = SMTP("172.17.0.1")
+    smtp_url = "smtp://%s:25" % get_container_host_ip()
+    smtp = SMTP(smtp_url)
     smtp.sendmail(sender, recipients, msg.as_string())
     smtp.quit()
 

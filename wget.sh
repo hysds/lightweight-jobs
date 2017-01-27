@@ -21,7 +21,7 @@ fi
 echo "##########################################" 1>&2
 echo -n "Generating wget script: " 1>&2
 date 1>&2
-python $BASE_PATH/wget.py "$query" > wget.log 2>&1
+python $BASE_PATH/wget.py "$query" "$id" "$url" "$emails" "$rule_name" > wget.log 2>&1
 STATUS=$?
 echo -n "Finished with wget script: " 1>&2
 date 1>&2
