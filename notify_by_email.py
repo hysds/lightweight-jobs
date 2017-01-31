@@ -89,7 +89,8 @@ def send_email(sender, cc_recipients, bcc_recipients, subject, body, attachments
     
     # Send the message via SMTP to docker host
     smtp_url = "smtp://%s:25" % get_container_host_ip()
-    smtp = SMTP(smtp_url)
+    print "smtp_url : %s",smtp_url
+    smtp = SMTP(get_container_host_ip())
     smtp.sendmail(sender, recipients, msg.as_string())
     smtp.quit()
 
