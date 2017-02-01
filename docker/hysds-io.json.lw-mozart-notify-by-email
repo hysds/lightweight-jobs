@@ -1,4 +1,5 @@
-{
+{ 
+  "component":"mozart",
   "params" : [
     {
       "name": "id",
