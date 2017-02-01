@@ -1,4 +1,4 @@
-import json, requests, types, re, getpass, sys
+import json, requests, types, re, getpass, sys, os
 from pprint import pformat
 import notify_by_email
 from hysds.celery import app
@@ -132,6 +132,8 @@ if __name__ == "__main__":
     subject = "[monitor] (wget_script:%s)" % (rule_name)
     body = "Product was ingested from query: %s" % query
     body += "\n\nYou can use this wget script attached to download products.\n"
-    attachments = { 'wget_script.sh'} 
+    if os.path.isfile('wget_script.sh'):
+	wget_content = open('wget_script.sh','r').read()
+	attachments = { 'wget_script.sh':wget_content} 
     notify_by_email.send_email(getpass.getuser(), cc_recipients, bcc_recipients, subject, body, attachments=attachments)
    
