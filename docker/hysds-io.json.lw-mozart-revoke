@@ -12,7 +12,7 @@
     {
       "name": "operation",
       "from": "value",
-      "value": "purge"
+      "value": "revoke"
     }
   ]
 }

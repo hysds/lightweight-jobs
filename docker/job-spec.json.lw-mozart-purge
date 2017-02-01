@@ -9,6 +9,10 @@
     {
       "name": "component",
       "destination": "positional"
+    },
+    {
+      "name": "operation",
+      "destination": "positional"
     }
    ]
 }
