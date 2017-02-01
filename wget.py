@@ -120,8 +120,6 @@ if __name__ == "__main__":
     #encoding to a JSON object
     query = {} 
     query['query'] = json.loads(sys.argv[1]) 
-    objectid = sys.argv[2]
-    url = sys.argv[3]
     emails = sys.argv[4]
     rule_name = sys.argv[5]
   
@@ -131,8 +129,8 @@ if __name__ == "__main__":
     attachments = None
     cc_recipients = [i.strip() for i in emails.split(',')]
     bcc_recipients = []
-    subject = "[monitor] (wget_script:%s) %s" % (rule_name, objectid)
-    body = "Product with id %s was ingested." % objectid
+    subject = "[monitor] (wget_script:%s)" % (rule_name)
+    body = "Product was ingested from query: %s" % query
     body += "\n\nYou can use this wget script attached to download products.\n"
     attachments = { 'wget_script.sh'} 
     notify_by_email.send_email(getpass.getuser(), cc_recipients, bcc_recipients, subject, body, attachments=attachments)

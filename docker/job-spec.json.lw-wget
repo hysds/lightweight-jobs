@@ -8,14 +8,6 @@
       "destination": "positional"
     },
     {
-      "name": "id",
-      "destination": "positional"
-    },
-    {
-      "name": "url",
-      "destination": "positional"
-    },
-    {
       "name": "emails",
       "destination": "positional"
     },
