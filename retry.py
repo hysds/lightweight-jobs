@@ -73,9 +73,9 @@ def resubmit_job(id):
 
 if __name__ == "__main__":
        
-    es_url = app.conf['ES_URL']
-    query_idx = app.conf['QUERY_INDEX']
-    facetview_url = app.conf['FACETVIEW_URL']
+    es_url = app.conf['JOBS_ES_URL']
+    query_idx = app.conf['STATUS_ALIAS']
+    facetview_url = app.conf['MOZART_URL']
     
    
     resubmit_job()
