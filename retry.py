@@ -8,7 +8,7 @@ from hysds.orchestrator import run_job
 from hysds.log_utils import log_job_status
 
 
-def resubmit_job(id):
+def resubmit_job():
     # random sleep to prevent from getting ElasticSearch errors:
     # 429 Client Error: Too Many Requests
     time.sleep(randint(1,5))
