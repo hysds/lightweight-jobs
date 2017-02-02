@@ -1,5 +1,5 @@
 {
-  "command":"/home/ops/verdi/ops/lightweight-jobs/retry_job.sh",
+  "command":"/home/ops/verdi/ops/lightweight-jobs/retry.sh",
   "disk_usage":"3GB",
   "params" : [
     {
