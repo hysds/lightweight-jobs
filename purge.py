@@ -24,11 +24,11 @@ def purge_products(query,component,operation):
     
     if component=="mozart":
         es_url = app.conf["JOBS_ES_URL"]
-        query_idx = app.conf["STATUS_ALIAS"]
+        es_idx = app.conf["STATUS_ALIAS"]
         facetview_url = app.conf["MOZART_URL"]
     elif component=="tosca":
         es_url = app.conf["GRQ_ES_URL"]
-        query_idx = app.conf["DATASET_ALIAS"]
+        es_idx = app.conf["DATASET_ALIAS"]
         facetview_url = app.conf["GRQ_URL"]
 
     #Querying for products
