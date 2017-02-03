@@ -24,11 +24,11 @@ def purge_products(query,component,operation):
     
     if component=="mozart":
         es_url = app.conf["JOBS_ES_URL"]
-        es_idx = app.conf["STATUS_ALIAS"]
+        es_index = app.conf["STATUS_ALIAS"]
         facetview_url = app.conf["MOZART_URL"]
     elif component=="tosca":
         es_url = app.conf["GRQ_ES_URL"]
-        es_idx = app.conf["DATASET_ALIAS"]
+        es_index = app.conf["DATASET_ALIAS"]
         facetview_url = app.conf["GRQ_URL"]
 
     #Querying for products
@@ -38,7 +38,7 @@ def purge_products(query,component,operation):
     results = hysds_commons.request_utils.post_scrolled_json_responses(start_url,scroll_url,data=json.dumps(query),logger=logger)
     print results
     
-    if component is 'tosca':
+    if component=='tosca':
     	for result in results:
     		es_type = result["_type"]
     		ident = result["_id"]
@@ -55,8 +55,8 @@ def purge_products(query,component,operation):
 		#removing the metadata
 		hysds_commons.metadata_rest_utils.remove_metadata(es_url,index,es_type,ident,logger)
 
-    elif component is 'mozart':
-	if operation is 'purge':
+    else:
+	if operation=='purge':
 		purge = True
 	else:
 		purge = False
@@ -89,7 +89,7 @@ def purge_products(query,component,operation):
             
             # Both associated task and job from ES
             logger.info( 'Removing ES for %s:%s',es_type,payload_id)
-	    r = hysds_commons.metadata_rest_utils.remove_metadata(es_url,index,es_type,uuid,logger) 
+	    r = hysds_commons.metadata_rest_utils.remove_metadata(es_url,index,es_type,payload_id,logger) 
             #r.raise_for_status() #not req
             #res = r.json() #not req
             logger.info('done.\n')

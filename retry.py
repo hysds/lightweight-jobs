@@ -36,10 +36,10 @@ def resubmit_job():
 
     # revoke original job
     try:
-        app.control.revoke(ctx['job_id'], terminate=True)
-        print "revoked original job: %s" % ctx['job_id']
+        app.control.revoke(ctx['job']['job_id'], terminate=True)
+        print "revoked original job: %s" % ctx['job']['job_id']
     except Exception, e:
-        print "Got error issuing revoke on job %s: %s" % (ctx['job_id'], traceback.format_exc())
+        print "Got error issuing revoke on job %s: %s" % (ctx['job']['job_id'], traceback.format_exc())
         print "Continuing."
 
     # generate celery task id
@@ -47,9 +47,9 @@ def resubmit_job():
 
     # delete old job status
     try:
-        r = requests.delete("%s/%s/job/_query?q=_id:%s" % (es_url, query_idx, ctx['job_id']))
+        r = requests.delete("%s/%s/job/_query?q=_id:%s" % (es_url, query_idx, ctx['job']['job_id']))
         r.raise_for_status()
-        print "deleted original job status: %s" % ctx['job_id']
+        print "deleted original job status: %s" % ctx['job']['job_id']
     except Exception, e:
         print "Got error deleting job status %s: %s" % (ctx['job_id'], traceback.format_exc())
         print "Continuing."
