@@ -61,7 +61,7 @@ def wget_script(dataset=None):
 
             for url in unique_urls:
 		logging.debug("urls in unique urls: %s",url)
-                if 'hysds-aria-products.s3-website' in url:
+                if 'hysds-aria-products.s3-website' in url or 'hysds-v2-dev-product-bucket.s3-website' in url:
                         parsed_url = urlparse(url)
                         cut_dirs = len(parsed_url.path[1:].split('/')) - 1
                 else:
@@ -69,7 +69,7 @@ def wget_script(dataset=None):
                                 cut_dirs = 3
                         else:
                                 cut_dirs = 6
-                if 'hysds-aria-products.s3-website' in url:
+                if 'hysds-aria-products.s3-website' in url or or 'hysds-v2-dev-product-bucket.s3-website' in url:
                         files = get_s3_files(url)
                         for file in files:
                                 yield 'echo "downloading  %s"\n' % file
