@@ -1,18 +1,14 @@
 import json, requests, types, re, getpass, sys, os
 from pprint import pformat
+import logging
 import notify_by_email
 from hysds.celery import app
 import boto3
 from urlparse import urlparse
-'''
-def format_source(src):
-    """Format source query as commented text."""
 
-    j = json.loads(src)
-    fmt_src = ""
-    for i in json.dumps(j, indent=2).split('\n'):
-        fmt_src += "#%s\n" % i
-    return fmt_src'''
+#TODO: Setup logger for this job here.  Should log to STDOUT or STDERR as this is a job
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("hysds")
 
 def wget_script(dataset=None):
     """Return wget script."""
@@ -22,15 +18,17 @@ def wget_script(dataset=None):
     index = app.conf["DATASET_ALIAS"]
     #facetview_url = app.conf["GRQ_URL"]
     print('%s/%s/_search?search_type=scan&scroll=10m&size=100' % (es_url, index))
+    logging.debug('%s/%s/_search?search_type=scan&scroll=10m&size=100' % (es_url, index))
     print json.dumps(dataset)
+    logging.debug(json.dumps(dataset))
 
     r = requests.post('%s/%s/_search?search_type=scan&scroll=10m&size=100' % (es_url, index), json.dumps(dataset))
     if r.status_code != 200:
         print("Failed to query ES. Got status code %d:\n%s" %(r.status_code, json.dumps(r.json(), indent=2)))
-	#app.logger.debug("Failed to query ES. Got status code %d:\n%s" %
-        #                 (r.status_code, json.dumps(r.json(), indent=2)))
+	logger.debug("Failed to query ES. Got status code %d:\n%s" %
+                         (r.status_code, json.dumps(r.json(), indent=2)))
     r.raise_for_status()
-    #app.logger.debug("result: %s" % pformat(r.json()))
+    logger.debug("result: %s" % pformat(r.json()))
 
     scan_result = r.json()
     count = scan_result['hits']['total']
@@ -53,7 +51,7 @@ def wget_script(dataset=None):
         while True:
             r = requests.post('%s/_search/scroll?scroll=10m' % es_url, data=scroll_id)
             res = r.json()
-            #app.logger.debug("res: %s" % pformat(res))
+            logger.debug("res: %s" % pformat(res))
             scroll_id = res['_scroll_id']
             if len(res['hits']['hits']) == 0: break
             # Elastic Search seems like it's returning duplicate urls. Remove duplicates
@@ -62,6 +60,7 @@ def wget_script(dataset=None):
                 [unique_urls.append(url) for url in hit['_source']['urls'] if url not in unique_urls]
 
             for url in unique_urls:
+		logging.debug("urls in unique urls: %s",url)
                 if 'hysds-aria-products.s3-website' in url:
                         parsed_url = urlparse(url)
                         cut_dirs = len(parsed_url.path[1:].split('/')) - 1
@@ -78,7 +77,7 @@ def wget_script(dataset=None):
                                         yield "%s --cut-dirs=%d %s\n" % (wget_cmd, cut_dirs, file)
                                 else:
                                         yield "%s --cut-dirs=%d %s\n" % (wget_cmd, cut_dirs, file)
-                if 'aria-dav.jpl.nasa.gov' in url:
+                if 'aria2-dav.jpl.nasa.gov' in url:
                         yield 'echo "downloading  %s"\n' % url
                         yield "%s --cut-dirs=%d %s/\n" % (wget_cmd_password, (cut_dirs+1), url)
                 if 'aria-csk-dav.jpl.nasa.gov' in url:
