@@ -1,4 +1,6 @@
 {
+  "label":"Wget script",
+  "component":"tosca",
   "params" : [
     {
       "name": "query",

@@ -1,4 +1,5 @@
 {
+  "label":"Purge jobs",
   "component":"mozart",
   "params" : [
     {

@@ -1,4 +1,5 @@
-{ 
+{
+  "label":"Notify by email", 
   "component":"mozart",
   "params" : [
     {

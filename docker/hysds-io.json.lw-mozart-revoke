@@ -1,4 +1,5 @@
 {
+  "label":"Revoke / Stop job",
   "component":"mozart",
   "params" : [
     {

@@ -1,4 +1,6 @@
 {
+  "label":"Purge datasets",
+  "component":"tosca",
   "params" : [
     {
       "name": "query",

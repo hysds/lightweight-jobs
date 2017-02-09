@@ -22,7 +22,7 @@ def purge_products(query,component,operation):
     '''
     logger.debug("Doing %s for %s with query: %s",operation,component,query)
     
-    if component=="mozart":
+    if component=="mozart" or component=="figaro":
         es_url = app.conf["JOBS_ES_URL"]
         es_index = app.conf["STATUS_ALIAS"]
         facetview_url = app.conf["MOZART_URL"]

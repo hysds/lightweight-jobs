@@ -1,4 +1,5 @@
 {
+  "label" : "echo",
   "params" : [
     {
       "name": "echo_var",

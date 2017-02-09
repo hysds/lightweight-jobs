@@ -175,7 +175,7 @@ if __name__ == "__main__":
     rule_name = sys.argv[4]
     component = sys.argv[5]
 
-    if component=="mozart":
+    if component=="mozart" or component=="figaro":
 	es_url = app.conf["JOBS_ES_URL"]
 	query_idx = app.conf["STATUS_ALIAS"]
 	facetview_url = app.conf["MOZART_URL"]

@@ -56,12 +56,12 @@ def wget_script(dataset=None):
             if len(res['hits']['hits']) == 0: break
             # Elastic Search seems like it's returning duplicate urls. Remove duplicates
             unique_urls=[]
-            for hit in res['hits']['hits']:
-                [unique_urls.append(url) for url in hit['_source']['urls'] if url not in unique_urls]
+            for hit in res['hits']['hits']: 
+                [unique_urls.append(url) for url in hit['_source']['urls'] if url not in unique_urls and url.startswith("http")]
 
             for url in unique_urls:
 		logging.debug("urls in unique urls: %s",url)
-                if 'hysds-aria-products.s3-website' in url or 'hysds-v2-dev-product-bucket.s3-website' in url:
+                if '.s3-website' in url or 'amazonaws.com' in url:
                         parsed_url = urlparse(url)
                         cut_dirs = len(parsed_url.path[1:].split('/')) - 1
                 else:
@@ -69,7 +69,7 @@ def wget_script(dataset=None):
                                 cut_dirs = 3
                         else:
                                 cut_dirs = 6
-                if 'hysds-aria-products.s3-website' in url or or 'hysds-v2-dev-product-bucket.s3-website' in url:
+                if '.s3-website' in url or or 'amazonaws.com' in url:
                         files = get_s3_files(url)
                         for file in files:
                                 yield 'echo "downloading  %s"\n' % file

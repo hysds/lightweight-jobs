@@ -1,4 +1,6 @@
 {
+  "label" : "Notify by email",
+  "component" : "tosca",
   "params" : [
     {
       "name": "id",
