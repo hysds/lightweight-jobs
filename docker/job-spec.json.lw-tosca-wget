@@ -1,4 +1,5 @@
 {
+ "required-queues":["system-jobs-queue"],
  "command":"/home/ops/verdi/ops/lightweight-jobs/wget.sh",
  "imported_worker_files":{"/home/ops/.aws":"/home/ops/.aws"}, 
  "disk_usage":"3GB",
