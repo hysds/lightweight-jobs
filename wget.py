@@ -69,7 +69,7 @@ def wget_script(dataset=None):
                                 cut_dirs = 3
                         else:
                                 cut_dirs = 6
-                if '.s3-website' in url or or 'amazonaws.com' in url:
+                if '.s3-website' in url or 'amazonaws.com' in url:
                         files = get_s3_files(url)
                         for file in files:
                                 yield 'echo "downloading  %s"\n' % file
