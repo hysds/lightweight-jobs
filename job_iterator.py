@@ -1,5 +1,5 @@
 #!/bin/env python
-import copy, json, traceback, itertools
+import copy, json, traceback, functools
 import logging
 
 import hysds_commons.request_utils
@@ -39,7 +39,7 @@ def job_iterator(component,rule):
     single = hysdsio.get("submission_type","iteration") == "individual"
 
     #For efficiency, run query only if we need the results
-    run_query = itertools.reduce(lambda x,y: y or x["from"].startswith("dataset_jpath"),hysdsio["params"],not single)
+    run_query = functools.reduce(lambda x,y: y or x["from"].startswith("dataset_jpath"),hysdsio["params"],not single)
 
     #Run the query to get the products
     results = [{"_id":"Transient Faux-Results"}]
