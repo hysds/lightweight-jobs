@@ -1,5 +1,5 @@
 {
-  "label":"Retry",
+  "label":"Retry Jobs",
   "component":"mozart",
   "params" : [
     {
