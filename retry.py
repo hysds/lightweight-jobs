@@ -16,6 +16,10 @@ def resubmit_job():
     with open('_context.json') as f:
       ctx = json.load(f)
 
+    if ctx[_source][resource] == "worker":
+	print "Cannot retry a worker"
+	return
+
     # get job json
     job_json = ctx['job']
 
