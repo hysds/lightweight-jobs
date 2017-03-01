@@ -5,6 +5,10 @@
     {
       "name": "job",
       "from": "dataset_jpath:_source.job"
+    },
+    {
+      "name": "type",
+      "from": "dataset_jpath:_type"
     }
         ]
 }

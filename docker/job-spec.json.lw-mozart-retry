@@ -6,6 +6,10 @@
     {
       "name": "job",
       "destination": "context"
+    },
+    {
+      "name": "type",
+      "destination": "positional"
     }
         ]
 }
