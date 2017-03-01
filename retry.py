@@ -78,7 +78,7 @@ if __name__ == "__main__":
     query_idx = app.conf['STATUS_ALIAS']
     facetview_url = app.conf['MOZART_URL']
     
-    type = sys.argv[2]
+    type = sys.argv[1]
     if type != "worker":  
     	resubmit_job()
     else:
