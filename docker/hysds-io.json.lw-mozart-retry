@@ -11,9 +11,9 @@
       "from": "dataset_jpath:_type"
     },
     {
-      "name": "max_retry_count",
+      "name": "retry_count_max",
       "from": "submitter",
-      "lambda": lambda x: int(x)	
+      "lambda": "lambda x: int(x)"
     }
         ]
 }
