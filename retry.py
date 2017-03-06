@@ -8,7 +8,7 @@ from hysds.orchestrator import run_job
 from hysds.log_utils import log_job_status
 
 
-def resubmit_job():
+def resubmit_job(max_):
     # random sleep to prevent from getting ElasticSearch errors:
     # 429 Client Error: Too Many Requests
     time.sleep(randint(1,5))
@@ -19,7 +19,19 @@ def resubmit_job():
 
     # get job json
     job_json = ctx['job']
+    
+    #check retry_remaining_count
+    retry_count_max = ctx['retry_count_max']
 
+    if 'retry_count' in job_json:
+	if job_json['retry_count'] < retry_count_max :
+		job_json['retry_count'] = int(job_json['retry_count']) + 1
+	elif: job_json['retry_count'] == retry_count_max :
+		print "Job reached retry_count_max limit. Cannot retry again."
+		return
+    else:
+	job_json['retry_count'] = 1 
+    
     # clean up job execution info
     for i in ( 'duration', 'execute_node', 'facts', 'job_dir', 'job_url',
                'metrics', 'pid', 'public_ip', 'status', 'stderr',
@@ -79,6 +91,7 @@ if __name__ == "__main__":
     facetview_url = app.conf['MOZART_URL']
     
     type = sys.argv[1]
+
     if type != "worker":  
     	resubmit_job()
     else:
