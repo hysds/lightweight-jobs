@@ -26,7 +26,7 @@ def resubmit_job(max_):
     if 'retry_count' in job_json:
 	if job_json['retry_count'] < retry_count_max :
 		job_json['retry_count'] = int(job_json['retry_count']) + 1
-	elif: job_json['retry_count'] == retry_count_max :
+	elif job_json['retry_count'] == retry_count_max :
 		print "Job reached retry_count_max limit. Cannot retry again."
 		return
     else:
