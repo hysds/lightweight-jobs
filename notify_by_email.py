@@ -155,9 +155,10 @@ def get_facetview_link(facetview_url, objectid, system_version=None):
     """Return link to objectid in FacetView interface."""
 
     if system_version is None:
-        b64 = base64.urlsafe_b64encode('{"query":{"query_string":{"query":"id:%s"}}}' % objectid)
+        b64 = base64.urlsafe_b64encode('{"query":{"query_string":{"query":"_id:%s"}}}' % objectid)
     else:
-        b64 = base64.urlsafe_b64encode('{"query":{"query_string":{"query":"id:%s AND system_version:%s"}}}' % (objectid, system_version))
+        b64 = base64.urlsafe_b64encode('{"query":{"query_string":{"query":"_id:%s AND system_version:%s"}}}' % (objectid, system_version))
+    if facetview_url.endswith('/'): facetview_url = facetview_url[:-1]
     return '%s/?base64=%s' % (facetview_url, b64)
     
 
