@@ -1,6 +1,7 @@
 {
   "label":"Revoke / Stop job",
   "component":"mozart",
+  "submission_type":"individual",
   "params" : [
     {
       "name": "query",

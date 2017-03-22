@@ -1,6 +1,7 @@
 {
   "label":"Purge jobs",
   "component":"mozart",
+  "submission_type":"individual",
   "params" : [
     {
       "name": "query",

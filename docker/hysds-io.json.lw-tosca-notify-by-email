@@ -1,6 +1,7 @@
 {
   "label" : "Notify by email",
   "component" : "tosca",
+  "submission_type":"iteration",
   "params" : [
     {
       "name": "id",

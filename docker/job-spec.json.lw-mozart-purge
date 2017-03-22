@@ -2,7 +2,6 @@
   "required_queues":["system-jobs-queue"],
   "command":"/home/ops/verdi/ops/lightweight-jobs/purge.sh",
   "disk_usage":"3GB",
-  "submission_type":"individual",
   "params" : [
     {
       "name": "query",

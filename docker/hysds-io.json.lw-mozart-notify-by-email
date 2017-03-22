@@ -1,6 +1,7 @@
 {
   "label":"Notify by email", 
   "component":"mozart",
+  "submission_type":"iteration",
   "params" : [
     {
       "name": "id",

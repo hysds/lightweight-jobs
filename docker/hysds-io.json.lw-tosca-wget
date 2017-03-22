@@ -1,6 +1,7 @@
 {
   "label":"Wget script",
   "component":"tosca",
+  "submission_type":"individual",
   "params" : [
     {
       "name": "query",
