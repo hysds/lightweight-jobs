@@ -118,7 +118,7 @@ if __name__ == "__main__":
     '''
     #encoding to a JSON object
     query = {} 
-    query = json.loads(sys.argv[1]) 
+    query["query"] = json.loads(sys.argv[1]) 
     emails = sys.argv[2]
     rule_name = sys.argv[3]
   

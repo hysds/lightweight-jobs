@@ -106,7 +106,7 @@ if __name__ == "__main__":
     dec = decoded_string.replace('u""','"')
     decoded_inp = dec.replace('""','"')
     print(decoded_inp)
-    query_obj = json.loads(decoded_inp)
+    query_obj["query"] = json.loads(decoded_inp)
 
     component = sys.argv[2]
     operation = sys.argv[3]
