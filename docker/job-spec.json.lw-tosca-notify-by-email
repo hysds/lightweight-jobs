@@ -1,7 +1,8 @@
 {
-  "required-queues":["system-jobs-queue"],
+  "required_queues":["system-jobs-queue"],
   "command":"/home/ops/verdi/ops/lightweight-jobs/notify_by_email.sh",
   "disk_usage":"3GB",
+  "submission_type":"iteration",
   "params" : [
     {
       "name": "id",

@@ -1,7 +1,8 @@
 {
-  "required-queues":["system-jobs-queue"],
+  "required_queues":["system-jobs-queue"],
   "command":"/home/ops/verdi/ops/lightweight-jobs/retry.sh",
   "disk_usage":"3GB",
+  "submission_type":"individual",
   "params" : [
     {
       "name": "job",

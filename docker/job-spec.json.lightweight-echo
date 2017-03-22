@@ -1,6 +1,7 @@
 {
   "command":"echo",
   "job_disk_usage":"1GB",
+  "submission_type":"individual",
   "params" : [
     {
       "name": "echo_var",
