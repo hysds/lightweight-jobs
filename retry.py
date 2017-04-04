@@ -24,13 +24,13 @@ def resubmit_jobs():
             retry_count_max = ctx['retry_count_max']
 
             if 'retry_count' in job_json:
-        	if job_json['retry_count'] < retry_count_max :
-		job_json['retry_count'] = int(job_json['retry_count']) + 1
-        	elif job_json['retry_count'] == retry_count_max :
-        		print "Job reached retry_count_max limit. Cannot retry again."
-        		return
+                if job_json['retry_count'] < retry_count_max :
+    	            job_json['retry_count'] = int(job_json['retry_count']) + 1
+                elif job_json['retry_count'] == retry_count_max :
+                    print "Job reached retry_count_max limit. Cannot retry again."
+                    return
             else:
-	        job_json['retry_count'] = 1 
+                job_json['retry_count'] = 1 
     
             # clean up job execution info
             for i in ( 'duration', 'execute_node', 'facts', 'job_dir', 'job_url',
@@ -94,6 +94,7 @@ if __name__ == "__main__":
     type = sys.argv[1]
 
     if type != "worker":  
-    	resubmit_job()
+        resubmit_jobs()
     else:
-	print "Cannot retry a worker."
+        print "Cannot retry a worker."
+
