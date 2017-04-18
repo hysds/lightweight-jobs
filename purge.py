@@ -101,13 +101,12 @@ if __name__ == "__main__":
     Main program of purge_products
     '''
     #encoding to a JSON object
-    query_obj = {}
     #decoded_string = sys.argv[1].decode('string_escape')
     #dec = decoded_string.replace('u""','"')
     #decoded_inp = dec.replace('""','"')
     decoded_inp = sys.argv[1]
     print decoded_inp
-    query_obj["query"] = json.loads(decoded_inp)
+    query_obj = json.loads(decoded_inp)
 
     component = sys.argv[2]
     operation = sys.argv[3]
