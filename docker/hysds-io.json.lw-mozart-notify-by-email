@@ -5,23 +5,28 @@
   "params" : [
     {
       "name": "id",
+      "type": "text",
       "from": "dataset_jpath:_source.job_id"
     },
     {
       "name": "url",
+      "type": "text",
       "from": "dataset_jpath:_source.job.job_info.job_url"
     },
     {
       "name": "emails",
+      "type": "email",
       "from": "submitter"
     },
     {
       "name": "name",
+      "type": "text",
       "from": "passthrough"
     },
     {
       "name": "component",
       "from": "value",
+      "type": "text",
       "value": "mozart"
     }
 	]

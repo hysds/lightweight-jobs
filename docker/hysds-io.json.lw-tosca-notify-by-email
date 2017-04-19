@@ -5,23 +5,28 @@
   "params" : [
     {
       "name": "id",
+      "type": "text",
       "from": "dataset_jpath:_source.objectid"
     },
     {
       "name": "url",
+      "type": "text",
       "from": "dataset_jpath:_source.urls"
     },
     {
       "name": "emails",
+      "type": "email",
       "from": "submitter"
     },
     {
       "name": "name",
+      "type": "text",
       "from": "passthrough"
     },
     {
       "name": "component",
       "from": "value",
+      "type": "text",
       "value": "tosca"
     }
 	]

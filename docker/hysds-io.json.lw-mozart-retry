@@ -5,14 +5,17 @@
   "params" : [
     {
       "name": "job",
+      "type": "text",
       "from": "dataset_jpath:_source.job"
     },
     {
       "name": "type",
+      "type": "text",
       "from": "dataset_jpath:_type"
     },
     {
       "name": "retry_count_max",
+      "type": "text",
       "from": "submitter",
       "lambda": "lambda x: int(x)"
     }
