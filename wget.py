@@ -1,6 +1,7 @@
 import json, requests, types, re, getpass, sys, os
 from pprint import pformat
 import logging
+import tarfile
 import notify_by_email
 from hysds.celery import app
 import boto3
@@ -91,7 +92,14 @@ def wget_script(dataset=None):
     # malarout: interate over each line of stream_wget response, and write to a file which is later attached to the email.
     with open('wget_script.sh','w') as f:
         for i in stream_wget(scroll_id):
-                f.write(i) 
+                f.write(i)
+
+    # for gzip compressed use file extension .tar.gz and modifier "w:gz"
+    tar = tarfile.open("wget.tar.gz", "w:gz") 
+
+    tar.add('wget_script.sh')
+    tar.close()
+
 
 def get_s3_files(url):
         files = []
@@ -131,8 +139,9 @@ if __name__ == "__main__":
     subject = "[monitor] (wget_script:%s)" % (rule_name)
     body = "Product was ingested from query: %s" % query
     body += "\n\nYou can use this wget script attached to download products.\n"
-    if os.path.isfile('wget_script.sh'):
-	wget_content = open('wget_script.sh','r').read()
-	attachments = { 'wget_script.sh':wget_content} 
+    if os.path.isfile('wget.tar.gz'):
+	attachments = MIMEMultipart()
+	wget_content = open('wget.tar.gz','r').read()
+	attachments = { 'wget.tar.gz':wget_content} 
     notify_by_email.send_email(getpass.getuser(), cc_recipients, bcc_recipients, subject, body, attachments=attachments)
    
