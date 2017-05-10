@@ -95,9 +95,9 @@ def wget_script(dataset=None):
                 f.write(i)
 
     # for gzip compressed use file extension .tar.gz and modifier "w:gz"
+    os.rename('wget_script.sh','wget_script.bash')
     tar = tarfile.open("wget.tar.gz", "w:gz") 
-
-    tar.add('wget_script.sh')
+    tar.add('wget_script.bash')
     tar.close()
 
 
@@ -139,6 +139,7 @@ if __name__ == "__main__":
     subject = "[monitor] (wget_script:%s)" % (rule_name)
     body = "Product was ingested from query: %s" % query
     body += "\n\nYou can use this wget script attached to download products.\n"
+    body += "Please rename wget_script.bash to wget_script.sh before running it."
     if os.path.isfile('wget.tar.gz'):
 	attachments = MIMEMultipart()
 	wget_content = open('wget.tar.gz','r').read()
