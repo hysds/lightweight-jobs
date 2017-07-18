@@ -73,6 +73,7 @@ def send_email(sender, cc_recipients, bcc_recipients, subject, body, attachments
     msg['BCC'] = COMMASPACE.join([formataddr((recipient_name, recipient_addr))
                                   for recipient_name, recipient_addr in unicode_parsed_bcc_recipients])
     msg['Subject'] = Header(unicode(subject), header_charset)
+    msg['FROM'] = "no-reply@jpl.nasa.gov"
     msg.attach(MIMEText(body.encode(body_charset), 'plain', body_charset))
     
     # Add attachments
