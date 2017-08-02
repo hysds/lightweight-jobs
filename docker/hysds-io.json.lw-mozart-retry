@@ -4,9 +4,9 @@
   "submission_type":"individual",
   "params" : [
     {
-      "name": "job",
+      "name": "retry_job_id",
       "type": "text",
-      "from": "dataset_jpath:_source.job"
+      "from": "dataset_jpath:_source.job.job_info.id"
     },
     {
       "name": "type",

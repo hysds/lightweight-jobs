@@ -7,21 +7,36 @@ from hysds.celery import app
 from hysds.orchestrator import run_job
 from hysds.log_utils import log_job_status
 
+def query_ES(job_id):
+   #get the ES_URL
+   es_url = app.conf["JOBS_ES_URL"]
+   index = app.conf["STATUS_ALIAS"]
+   query_json = {"query":{"bool": {"must": [{"term": {"job.job_info.id": "job_id"}}]}}}
+   query_json["query"]["bool"]["must"]["must"][1]["term"]["job.job_info.id"] = '"'+job_id+'"'
+   r = requests.post('%s/%s/_search?' % (es_url, index), json.dumps(query_json))
+   return r
 
 def resubmit_jobs():
     # random sleep to prevent from getting ElasticSearch errors:
     # 429 Client Error: Too Many Requests
     time.sleep(randint(1,5))
     # can call submit_job
+
+    #iterate through job ids and query to get the job json
     with open('_context.json') as f:
       ctx = json.load(f)
-    for job_json in ctx['job']:
+    for job_id in ctx['retry_job_id']:
         try:
-            ## get job json
-            #job_json = ctx['job']
-    
+            ## get job json for ES
+	    response = query_ES(job_id)
+	    if response.status_code != 200:
+		print("Failed to query ES. Got status code %d:\n%s" % (response.status_code, json.dumps)(response.json(), indent = 2))
+	    response.raise_for_status()
+	    logger.debug("result: %s" % response.json())	
+            resp_json = response.json()
+   	     
             #check retry_remaining_count
-            retry_count_max = ctx['retry_count_max']
+            job_json = resp_json["hits"]["hits"][0]["_source"]["job"]
 
             if 'retry_count' in job_json:
                 if job_json['retry_count'] < retry_count_max :
@@ -64,7 +79,7 @@ def resubmit_jobs():
                 r.raise_for_status()
                 print "deleted original job status: %s" % job_json['job_id']
             except Exception, e:
-                print "Got error deleting job status %s: %s" % (ctx_json['job_id'], traceback.format_exc())
+                print "Got error deleting job status %s: %s" % (ctx_json['retry_job_id'], traceback.format_exc())
                 print "Continuing."
 
             # log queued status
@@ -91,9 +106,9 @@ if __name__ == "__main__":
     query_idx = app.conf['STATUS_ALIAS']
     facetview_url = app.conf['MOZART_URL']
     
-    type = sys.argv[1]
+    input_type = sys.argv[1]
 
-    if type != "worker":  
+    if input_type != "worker":  
         resubmit_jobs()
     else:
         print "Cannot retry a worker."
