@@ -12,7 +12,7 @@ def query_ES(job_id):
    es_url = app.conf["JOBS_ES_URL"]
    index = app.conf["STATUS_ALIAS"]
    query_json = {"query":{"bool": {"must": [{"term": {"job.job_info.id": "job_id"}}]}}}
-   query_json["query"]["bool"]["must"]["must"][1]["term"]["job.job_info.id"] = '"'+job_id+'"'
+   query_json["query"]["bool"]["must"][0]["term"]["job.job_info.id"] = job_id
    r = requests.post('%s/%s/_search?' % (es_url, index), json.dumps(query_json))
    return r
 
