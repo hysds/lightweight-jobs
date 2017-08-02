@@ -32,7 +32,6 @@ def resubmit_jobs():
 	    if response.status_code != 200:
 		print("Failed to query ES. Got status code %d:\n%s" % (response.status_code, json.dumps)(response.json(), indent = 2))
 	    response.raise_for_status()
-	    logger.debug("result: %s" % response.json())	
             resp_json = response.json()
    	     
             #check retry_remaining_count
