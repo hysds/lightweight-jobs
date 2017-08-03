@@ -25,6 +25,8 @@ def resubmit_jobs():
     #iterate through job ids and query to get the job json
     with open('_context.json') as f:
       ctx = json.load(f)
+
+    retry_count_max = ctx['retry_count_max']
     for job_id in ctx['retry_job_id']:
         try:
             ## get job json for ES
