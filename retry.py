@@ -109,6 +109,11 @@ if __name__ == "__main__":
     
     input_type = sys.argv[1]
 
+    #set dedup to false
+    with open('_job.json') as f:
+      job_json = json.load(f)
+
+    job_json["job_info"]["dedup"] = False
     if input_type != "worker":  
         resubmit_jobs()
     else:
