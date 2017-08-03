@@ -47,7 +47,8 @@ def resubmit_jobs():
                     return
             else:
                 job_json['retry_count'] = 1 
-    
+    	
+	    job_json["job_info"]["dedup"] = False
             # clean up job execution info
             for i in ( 'duration', 'execute_node', 'facts', 'job_dir', 'job_url',
                        'metrics', 'pid', 'public_ip', 'status', 'stderr',
@@ -111,9 +112,9 @@ if __name__ == "__main__":
 
     #set dedup to false
     with open('_job.json') as f:
-      job_json = json.load(f)
+      job = json.load(f)
 
-    job_json["job_info"]["dedup"] = False
+    job["job_info"]["dedup"] = False
     if input_type != "worker":  
         resubmit_jobs()
     else:
