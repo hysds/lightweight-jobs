@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import os, sys, json, requests, time, traceback
-from random import randint
+from random import randint, uniform
 from datetime import datetime
 from celery import uuid
 from hysds.celery import app
@@ -16,6 +16,10 @@ def query_ES(job_id):
    r = requests.post('%s/%s/_search?' % (es_url, index), json.dumps(query_json))
    return r
 
+
+def rand_sleep(sleep_min=0.1, sleep_max=1): time.sleep(uniform(sleep_min, sleep_max))
+
+
 def resubmit_jobs():
     # random sleep to prevent from getting ElasticSearch errors:
     # 429 Client Error: Too Many Requests
@@ -30,6 +34,7 @@ def resubmit_jobs():
     for job_id in ctx['retry_job_id']:
         try:
             ## get job json for ES
+            rand_sleep()
 	    response = query_ES(job_id)
 	    if response.status_code != 200:
 		print("Failed to query ES. Got status code %d:\n%s" % (response.status_code, json.dumps)(response.json(), indent = 2))
@@ -65,6 +70,7 @@ def resubmit_jobs():
             job_json['priority'] = priority
 
             # revoke original job
+            rand_sleep()
             try:
                 app.control.revoke(job_json['job_id'], terminate=True)
                 print "revoked original job: %s" % job_json['job_id']
@@ -76,6 +82,7 @@ def resubmit_jobs():
             job_json['task_id'] = uuid()
 
             # delete old job status
+            rand_sleep()
             try:
                 r = requests.delete("%s/%s/job/_query?q=_id:%s" % (es_url, query_idx, job_json['job_id']))
                 r.raise_for_status()
@@ -85,6 +92,7 @@ def resubmit_jobs():
                 print "Continuing."
 
             # log queued status
+            rand_sleep()
             job_status_json = { 'uuid': job_json['task_id'],
                                 'job_id': job_json['job_id'],
                                 'payload_id': job_json['job_info']['job_payload']['payload_task_id'],
