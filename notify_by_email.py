@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import os, sys, getpass, requests, json, types, base64
+import os, sys, getpass, requests, json, types, base64, socket
 from smtplib import SMTP
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
@@ -9,6 +9,19 @@ from email.Utils import parseaddr, formataddr, COMMASPACE, formatdate
 from email import Encoders
 from hysds.celery import app
 from hysds_commons.net_utils import get_container_host_ip
+
+
+def get_hostname():
+    """Get hostname."""
+
+    # get hostname
+    try: return socket.getfqdn()
+    except:
+        # get IP
+        try: return socket.gethostbyname(socket.gethostname())
+        except:
+            raise RuntimeError("Failed to resolve hostname for full email address. Check system.")
+            
 
 def send_email(sender, cc_recipients, bcc_recipients, subject, body, attachments=None):
     """Send an email.
@@ -216,4 +229,5 @@ if __name__ == "__main__":
         body += "\n\nYou may view this product in FacetView here:\n\n%s" % facet_url
         body += "\n\nNOTE: You may have to cut and paste the FacetView link into your "
         body += "browser's address bar to prevent your email client from escaping the curly brackets."
-    send_email(getpass.getuser(), cc_recipients, bcc_recipients, subject, body, attachments=attachments)
+    send_email("%s@%s" % (getpass.getuser(), get_hostname()), cc_recipients, 
+               bcc_recipients, subject, body, attachments=attachments)
