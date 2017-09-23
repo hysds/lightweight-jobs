@@ -41,7 +41,7 @@ def aws_get_script(dataset=None):
         #formatted_source = format_source(source)
         yield '#!/bin/bash\n#\n' + \
               '# query:\n#\n' + \
-              '%s#\n#\n#' % json.dumps(dataset) + \
+              '#%s#\n#\n#' % json.dumps(dataset) + \
               '# total datasets matched: %d\n\n' % count + \
               'echo ""\n'
         aws_get_cmd = 'aws s3 sync {} {}\n'
