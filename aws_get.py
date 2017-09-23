@@ -9,10 +9,11 @@ from urlparse import urlparse
 
 #TODO: Setup logger for this job here.  Should log to STDOUT or STDERR as this is a job
 logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger("hysds")
+logger = logging.getLogger("aws_get")
 
-def wget_script(dataset=None):
-    """Return wget script."""
+
+def aws_get_script(dataset=None):
+    """Return AWS get script."""
 
     # query
     es_url = app.conf["GRQ_ES_URL"]
@@ -36,18 +37,14 @@ def wget_script(dataset=None):
     scroll_id = scan_result['_scroll_id']
 
     # stream output a page at a time for better performance and lower memory footprint
-    def stream_wget(scroll_id):
+    def stream_aws_get(scroll_id):
         #formatted_source = format_source(source)
         yield '#!/bin/bash\n#\n' + \
               '# query:\n#\n' + \
               '%s#\n#\n#' % json.dumps(dataset) + \
               '# total datasets matched: %d\n\n' % count + \
-              'read -s -p "JPL Username: " user\n' + \
-              'echo ""\n' + \
-              'read -s -p "JPL Password: " password\n' + \
               'echo ""\n'
-        wget_cmd = 'wget --no-check-certificate --mirror -np -nH --reject "index.html*"'
-        wget_cmd_password = wget_cmd + ' --user=$user --password=$password'
+        aws_get_cmd = 'aws s3 sync {} {}\n'
 
         while True:
             r = requests.post('%s/_search/scroll?scroll=10m' % es_url, data=scroll_id)
@@ -58,71 +55,30 @@ def wget_script(dataset=None):
             # Elastic Search seems like it's returning duplicate urls. Remove duplicates
             unique_urls=[]
             for hit in res['hits']['hits']: 
-                [unique_urls.append(url) for url in hit['_source']['urls'] if url not in unique_urls and url.startswith("http")]
+                [unique_urls.append(url) for url in hit['_source']['urls'] if url not in unique_urls and url.startswith("s3")]
 
             for url in unique_urls:
 		logging.debug("urls in unique urls: %s",url)
-                if '.s3-website' in url or 'amazonaws.com' in url:
-                        parsed_url = urlparse(url)
-                        cut_dirs = len(parsed_url.path[1:].split('/')) - 1
-                else:
-                        if 's1a_ifg' in url:
-                                cut_dirs = 3
-                        else:
-                                cut_dirs = 6
-                if '.s3-website' in url or 'amazonaws.com' in url:
-                        files = get_s3_files(url)
-                        for file in files:
-                                yield 'echo "downloading  %s"\n' % file
-                                if 's1a_ifg' in url:
-                                        yield "%s --cut-dirs=%d %s\n" % (wget_cmd, cut_dirs, file)
-                                else:
-                                        yield "%s --cut-dirs=%d %s\n" % (wget_cmd, cut_dirs, file)
-                if 'aria2-dav.jpl.nasa.gov' in url:
-                        yield 'echo "downloading  %s"\n' % url
-                        yield "%s --cut-dirs=%d %s/\n" % (wget_cmd_password, (cut_dirs+1), url)
-                if 'aria-csk-dav.jpl.nasa.gov' in url:
-                        yield 'echo "downloading  %s"\n' % url
-                        yield "%s --cut-dirs=%d %s/\n" % (wget_cmd_password, (cut_dirs+1), url)
-                if 'aria-dst-dav.jpl.nasa.gov' in url:
-                        yield 'echo "downloading  %s"\n' % url
-                        yield "%s --cut-dirs=%d %s/\n" % (wget_cmd, cut_dirs, url)
-                        break
+                parsed_url = urlparse(url)
+                yield 'echo "downloading  %s"\n' % os.path.basename(parsed_url.path)
+                yield aws_get_cmd.format("{}://{}".format(parsed_url.scheme, parsed_url.path),
+                                         os.path.basename(parsed_url.path))
     
-    # malarout: interate over each line of stream_wget response, and write to a file which is later attached to the email.
-    with open('wget_script.sh','w') as f:
-        for i in stream_wget(scroll_id):
+    # malarout: interate over each line of stream_aws_get response, and write to a file which is later attached to the email.
+    with open('aws_get_script.sh','w') as f:
+        for i in stream_aws_get(scroll_id):
                 f.write(i)
 
     # for gzip compressed use file extension .tar.gz and modifier "w:gz"
-    os.rename('wget_script.sh','wget_script.bash')
-    tar = tarfile.open("wget.tar.gz", "w:gz") 
-    tar.add('wget_script.bash')
+    os.rename('aws_get_script.sh','aws_get_script.bash')
+    tar = tarfile.open("aws_get.tar.gz", "w:gz") 
+    tar.add('aws_get_script.bash')
     tar.close()
 
 
-def get_s3_files(url):
-        files = []
-	print("Url in the get_s3_files function: %s",url)
-        parsed_url = urlparse(url)
-        bucket = parsed_url.hostname.split('.', 1)[0]
-        client = boto3.client('s3')
-        results = client.list_objects(Bucket=bucket, Delimiter='/', Prefix=parsed_url.path[1:] + '/')
-
-        if results.get('Contents'):
-                for result in results.get('Contents'):
-                        files.append(parsed_url.scheme + "://" + parsed_url.hostname + '/' + result.get('Key'))
-
-        if results.get('CommonPrefixes'):
-                for result in results.get('CommonPrefixes'):
-                        # Prefix values have a trailing '/'. Let's remove it to be consistent with our dir urls
-                        folder = parsed_url.scheme + "://" + parsed_url.hostname + '/' + result.get('Prefix')[:-1]
-                        files.extend(get_s3_files(folder))
-        return files
-
 if __name__ == "__main__":
     '''
-    Main program of wget_script
+    Main program of aws_get_script
     '''
     #encoding to a JSON object
     query = {} 
@@ -131,17 +87,16 @@ if __name__ == "__main__":
     rule_name = sys.argv[3]
   
     # getting the script
-    wget_script(query)
+    aws_get_script(query)
     # now email the query
     attachments = None
     cc_recipients = [i.strip() for i in emails.split(',')]
     bcc_recipients = []
-    subject = "[monitor] (wget_script:%s)" % (rule_name)
+    subject = "[monitor] (aws_get_script:%s)" % (rule_name)
     body = "Product was ingested from query: %s" % query
-    body += "\n\nYou can use this wget script attached to download products.\n"
-    body += "Please rename wget_script.bash to wget_script.sh before running it."
-    if os.path.isfile('wget.tar.gz'):
-	wget_content = open('wget.tar.gz','r').read()
-	attachments = { 'wget.tar.gz':wget_content} 
+    body += "\n\nYou can use this AWS get script attached to download products.\n"
+    body += "Please rename aws_get_script.bash to aws_get_script.sh before running it."
+    if os.path.isfile('aws_get.tar.gz'):
+	aws_get_content = open('aws_get.tar.gz','r').read()
+	attachments = { 'aws_get.tar.gz':aws_get_content} 
     notify_by_email.send_email(getpass.getuser(), cc_recipients, bcc_recipients, subject, body, attachments=attachments)
-   
