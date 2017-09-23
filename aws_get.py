@@ -61,7 +61,8 @@ def aws_get_script(dataset=None):
 		logging.debug("urls in unique urls: %s",url)
                 parsed_url = urlparse(url)
                 yield 'echo "downloading  %s"\n' % os.path.basename(parsed_url.path)
-                yield aws_get_cmd.format("{}://{}".format(parsed_url.scheme, parsed_url.path),
+                yield aws_get_cmd.format("{}://{}".format(parsed_url.scheme,
+                                                          parsed_url.path[1:] if parsed_url.path.startswith('/') else parsed_url.path),
                                          os.path.basename(parsed_url.path))
     
     # malarout: interate over each line of stream_aws_get response, and write to a file which is later attached to the email.
