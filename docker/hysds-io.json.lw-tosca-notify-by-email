@@ -1,0 +1,33 @@
+{
+  "label" : "Notify by email",
+  "component" : "tosca",
+  "submission_type":"iteration",
+  "params" : [
+    {
+      "name": "id",
+      "type": "text",
+      "from": "dataset_jpath:_source.objectid"
+    },
+    {
+      "name": "url",
+      "type": "text",
+      "from": "dataset_jpath:_source.urls"
+    },
+    {
+      "name": "emails",
+      "type": "text",
+      "from": "submitter"
+    },
+    {
+      "name": "name",
+      "type": "text",
+      "from": "passthrough"
+    },
+    {
+      "name": "component",
+      "from": "value",
+      "type": "text",
+      "value": "tosca"
+    }
+	]
+}

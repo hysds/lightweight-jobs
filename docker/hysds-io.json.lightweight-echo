@@ -1,0 +1,11 @@
+{
+  "label" : "echo",
+  "submission_type":"individual",
+  "params" : [
+    {
+      "name": "echo_var",
+      "from": "value",
+      "value": "Hello world!"
+    }
+  ]
+}

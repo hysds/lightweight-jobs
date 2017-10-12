@@ -1,0 +1,23 @@
+{
+  "label":"Retry Jobs/Tasks",
+  "component":"mozart",
+  "submission_type":"individual",
+  "params" : [
+    {
+      "name": "retry_job_id",
+      "type": "text",
+      "from": "dataset_jpath:_source.job.job_info.id"
+    },
+    {
+      "name": "type",
+      "type": "text",
+      "from": "dataset_jpath:_type"
+    },
+    {
+      "name": "retry_count_max",
+      "type": "text",
+      "from": "submitter",
+      "lambda": "lambda x: int(x)"
+    }
+        ]
+}

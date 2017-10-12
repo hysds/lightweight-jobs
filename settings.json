@@ -1,0 +1,11 @@
+{
+ "SNIPPET_CFG": [
+    ["metadata.tags", "tags"],
+    ["metadata.user_tags", "user tags"],
+    ["metadata.version", "version"],
+    ["system_version", "system version"],
+    ["starttime", "start time"],
+    ["endtime", "end time"],
+    ["continent", "continent"]
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "required_queues":["system-jobs-queue"],
+  "command":"/home/ops/verdi/ops/lightweight-jobs/purge.sh",
+  "disk_usage":"3GB",
+  "params" : [
+    {
+      "name": "query",
+      "destination": "positional"
+    },
+    {
+      "name": "component",
+      "destination": "positional"
+    },
+    {
+      "name": "operation",
+      "destination": "positional"
+    }
+   ]
+}

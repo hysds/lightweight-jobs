@@ -1,0 +1,10 @@
+{
+  "command":"echo",
+  "disk_usage":"1GB",
+  "params" : [
+    {
+      "name": "echo_var",
+      "destination": "positional"
+    }
+  ]
+}

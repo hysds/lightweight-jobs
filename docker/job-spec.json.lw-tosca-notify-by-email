@@ -1,0 +1,27 @@
+{
+  "required_queues":["system-jobs-queue"],
+  "command":"/home/ops/verdi/ops/lightweight-jobs/notify_by_email.sh",
+  "disk_usage":"3GB",
+  "params" : [
+    {
+      "name": "id",
+      "destination": "positional"
+    },
+    {
+      "name": "url",
+      "destination": "positional"
+    },
+    {
+      "name": "emails",
+      "destination": "positional"
+    },
+    {
+      "name": "name",
+      "destination": "positional"
+    },
+    {
+      "name": "component",
+      "destination": "positional"
+    }
+	]
+}

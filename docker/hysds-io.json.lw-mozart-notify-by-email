@@ -1,0 +1,33 @@
+{
+  "label":"Notify by email", 
+  "component":"mozart",
+  "submission_type":"iteration",
+  "params" : [
+    {
+      "name": "id",
+      "type": "text",
+      "from": "dataset_jpath:_source.job_id"
+    },
+    {
+      "name": "url",
+      "type": "text",
+      "from": "dataset_jpath:_source.job.job_info.job_url"
+    },
+    {
+      "name": "emails",
+      "type": "text",
+      "from": "submitter"
+    },
+    {
+      "name": "name",
+      "type": "text",
+      "from": "passthrough"
+    },
+    {
+      "name": "component",
+      "from": "value",
+      "type": "text",
+      "value": "mozart"
+    }
+	]
+}
