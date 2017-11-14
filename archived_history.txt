@@ -1,0 +1,749 @@
+commit c513c6f71ed4d0a9940413b44d478e25601568f0
+Merge: 1ca0f6b 4ee0aba
+Author: Namrata Malarout <Namrata.Malarout@jpl.nasa.gov>
+Date:   Mon Sep 25 08:48:51 2017 -0700
+
+    Merge pull request #1 from hysds-org/gman-dev
+    
+    AWS get script
+
+commit 4ee0aba2578abefca680a4f2c16eb64a3363d073
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Sat Sep 23 21:51:49 2017 +0000
+
+    comment out query
+
+commit f2df561be829aee73e926c103f6f09ce3c0c014d
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Sat Sep 23 21:45:53 2017 +0000
+
+    truncate leading / in path
+
+commit 19357eb02e6af1a4db3ce36d685235f81df8c914
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Sat Sep 23 21:37:52 2017 +0000
+
+    implement generation of AWS get script
+
+commit f540ab8b8f66e6a7c0ff4660aa6f2af3e0c5b2f0
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Sat Sep 23 21:19:14 2017 +0000
+
+    initial PGE configs/scripts for AWS get
+
+commit 1ca0f6b70e043d41f4a04fc2fd6d67d957623992
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Tue Aug 15 17:39:33 2017 +0000
+
+    fix disk_usage param
+
+commit f735884c2b6304943c7800707f5c35ecca13b00f
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Fri Aug 4 15:07:33 2017 -0700
+
+    resolve hostname to generate fully qualified email address
+
+commit 155501f3033c1995bb23cfd8b391d3d257e04066
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Fri Aug 4 09:06:53 2017 -0700
+
+    continue with rest of jobs instead of exiting out
+
+commit 5f57c3c0bf09da3502d092e2eac682ab09839d27
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Fri Aug 4 08:55:06 2017 -0700
+
+    sprinkle random sleeps to reduce ES merge throttling
+
+commit ad76370d4034b5c68cae9e2f2f50ae7e8ad2085c
+Author: Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Aug 3 12:53:36 2017 -0700
+
+    malarout: setting dedup to false in retry
+
+commit c5e92503f9b01b0c929150c1a33ed2fac21c4a90
+Author: Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Aug 3 12:31:47 2017 -0700
+
+    malarout: setting dedup to false in retry
+
+commit b1f1953901e18cf2944cb5cda060e8be067fc381
+Author: Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Aug 3 10:08:35 2017 -0700
+
+    malarout: assign retry_count_max
+
+commit 5fecac403bb32fa1d1b072b56233c93a176e6a0a
+Author: Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Aug 2 14:37:29 2017 -0700
+
+    malarout: removing logger debug line
+
+commit cb0172e1d303deed4fc5b1aef84f07b223e6097c
+Author: Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Aug 2 12:30:22 2017 -0700
+
+    malarout: updated wroung index
+
+commit 0d83573b421122618b592b2ceebc4953df8465c6
+Author: Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Aug 2 12:06:11 2017 -0700
+
+    changing retry to use job id as input
+
+commit 33a906ceaa46fe8bfa2d01201ac5a7d13d1730b9
+Author: Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Tue Jul 18 11:49:29 2017 -0700
+
+    malarout: addded From address to email
+
+commit dceb109713c2189c1f08578213823cc1b790bf02
+Author: Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed May 10 12:07:53 2017 -0700
+
+    malarout:wget script bug fix
+
+commit 518b23197c7bfeb767da0db2f6d94f74c71912da
+Author: Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed May 10 11:12:21 2017 -0700
+
+    malarout:wget script tar attachment
+
+commit bcd203ba84816a25f57713011d272ffa0652c724
+Author: Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Mon May 8 10:56:10 2017 -0700
+
+    malarout: tar zipped wget script
+
+commit 1aae77cdb9c427892096198fea1eb59c43c52544
+Author: Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Tue May 2 11:09:27 2017 -0700
+
+    malarout: wget fix
+
+commit 6db04c00fd40a4176d1e7cb4ea4a9586526f1a17
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Wed Apr 19 23:11:30 2017 +0000
+
+    mstarch: fixing email
+
+commit 1f5945fca4b4d50148b61e1a1b9b2f6613b18d78
+Author: Namrata Malarout <Namrata.Malarout@jpl.nasa.gov>
+Date:   Wed Apr 19 15:54:30 2017 -0700
+
+    malarout: update purge to handle all forms of passthrough query
+
+commit 8999257d607677d863ef24e112c29255cc8e2c32
+Merge: d8ccbaa 588519d
+Author: jlinick <Justin.P.Linick@jpl.nasa.gov>
+Date:   Wed Apr 19 20:56:54 2017 +0000
+
+    Merge branch 'master-mstarch' of https://github.jpl.nasa.gov/hysds-org/lightweight-jobs
+
+commit d8ccbaa4461b6f0afaf9632c562b4c810dd3878d
+Author: Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Apr 19 11:45:36 2017 -0700
+
+    malarout: added input field specs
+
+commit 7f77b00a29d0dc22866d966868ce8f27749485da
+Author: Namrata Malarout <Namrata.Malarout@jpl.nasa.gov>
+Date:   Tue Apr 18 10:47:09 2017 -0700
+
+    malarout: Fixed query object construction
+
+commit 7dfcfc19e12eb891904cc815423546328232890a
+Author: Namrata Malarout <Namrata.Malarout@jpl.nasa.gov>
+Date:   Thu Apr 6 20:30:17 2017 -0700
+
+    fix for decoded passthrough
+
+commit 588519d56f2952491357b71a884893bf2ce51895
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Tue Apr 4 19:53:03 2017 +0000
+
+    mstarch: working retry with internal iteration
+
+commit cb8d594b8298dcf2159a16db5be0fd4a98963148
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Tue Apr 4 19:15:26 2017 +0000
+
+    mstarch: making retry properly iterate the job sets
+
+commit f2abdb36ae805f462cdd881bc5b535bdb50a0726
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Wed Mar 22 23:15:50 2017 +0000
+
+    mstarch: undoing misguided fix
+
+commit 8572316b1c3c0f939ac70033c5357aeca3112e54
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Wed Mar 22 23:09:31 2017 +0000
+
+    mstarch: fixing submission_type
+
+commit 88b088524e26fb1ed9a30f26b8499e9b3118a655
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Wed Mar 22 22:15:31 2017 +0000
+
+    mstarch: fixing purge and wget query parameter handling and job-spec definitions
+
+commit 113e9e21473e5316718ce0651e33b5983f1204f7
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Tue Mar 14 18:20:50 2017 +0000
+
+    standardize on hysds/pge-base:latest
+
+commit 1c3059e7b0dd66fff63259913acbfe998e5a2a2c
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Mon Mar 13 16:19:39 2017 +0000
+
+    fix query for objectid and create clean url
+
+commit 1bad4c95818c263ba37046c06c599f500f575ca6
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Mon Mar 13 15:54:03 2017 +0000
+
+    use TOSCA_URL config for link to product
+
+commit 6ef3cc9bc63f3c2feda6f76882155579a3d775f3
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Wed Mar 8 15:51:49 2017 +0000
+
+    yet another test of release tagging
+
+commit 86beba00e7855b4abfe8577fc543551ca5d9532e
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Wed Mar 8 15:22:50 2017 +0000
+
+    test jenkins config for building release tags
+
+commit d19a40b8aaa71e001e8248daca7e2572ff562ff6
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Wed Mar 8 15:10:55 2017 +0000
+
+    add header to README.md; need commit for new release
+
+commit f7adf00ca07583dc045e4e03ccc45c94c1fd2bcb
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Mon Mar 6 19:19:19 2017 +0000
+
+    malarout: fixed all logic errors in retry.py
+
+commit a1d555873ff5b3685d5b1db41f9c75aedc920c47
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Mon Mar 6 18:33:14 2017 +0000
+
+    malarout: fixed syntax error in retry.py
+
+commit 0f1f46282d8c66049b34b70ae9a286d4bc0ca7e2
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Mon Mar 6 18:20:36 2017 +0000
+
+    malarout: renamed variable to retry_count_max
+
+commit f73eb86ed01fe8a0f66db17caaa2110594958950
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Mon Mar 6 18:14:02 2017 +0000
+
+    malarout: added retry count to jobs
+
+commit 97e32eebef1ca0e597743b7ec327dae7e866dc88
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Wed Mar 1 22:11:11 2017 +0000
+
+    malarout: fixed condition to check for type 'worker'
+
+commit a6f595c0ff9d460928045b4c2b5eda95bd731ee7
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Wed Mar 1 21:55:23 2017 +0000
+
+    malarout: fixed condition to check for type 'worker'
+
+commit b5f1f053eb75801db07048cbd41a8204ad821296
+Author: gmanipon <gmanipon@jpl.nasa.gov>
+Date:   Mon Feb 27 22:16:06 2017 +0000
+
+    remove job-iterator script and job spec; migrated to task
+
+commit 52860475264d7e5a41b0eace30cc5c8cb972418e
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Feb 23 18:22:39 2017 +0000
+
+    malarout: Added check in retry job to avoid retrying workers
+
+commit d6b8e6baeb3dcc34513a8cdb04aed864d8d62967
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Feb 22 23:22:47 2017 +0000
+
+    malarout: modified label for retry job
+
+commit 5db583a45e4715094940e20447443fd661f91af5
+Merge: ede326c 5f90ef6
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Thu Feb 16 00:44:57 2017 +0000
+
+    Merge branch 'master' of https://github.jpl.nasa.gov/hysds-org/lightweight-jobs
+
+commit ede326c47e4944cc87b9f8aca408b9b9045149b3
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Thu Feb 16 00:40:56 2017 +0000
+
+    mstarch: fixing itertools -> functools
+
+commit 5f90ef601be803634813b93fdf1bc21c7df02300
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Feb 15 19:54:40 2017 +0000
+
+    Revert "malarout: Added create AOI job"
+    
+    This reverts commit 20c5be2993313d984b30e7e703587631ab5dc9ec.
+
+commit c10091165412317cbd4e0656241430f631cabe1c
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Wed Feb 15 17:59:04 2017 +0000
+
+    mstarch: fixing job iterator job
+
+commit 20c5be2993313d984b30e7e703587631ab5dc9ec
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Feb 15 15:42:07 2017 +0000
+
+    malarout: Added create AOI job
+
+commit 3539a06bd7dd0acf55662dc5f89aba5928e1889c
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Feb 9 01:24:55 2017 +0000
+
+    malarout: added required-queues to job specs
+
+commit 3bdcd46359521a07322bfeb82861a23583aba4a2
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Feb 9 00:17:57 2017 +0000
+
+    malarout: corrected typo in wget script
+
+commit f622541d85e364f19849523e71fa23e1cd976aab
+Merge: bd52746 53a755f
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Feb 9 00:09:00 2017 +0000
+
+    Merge branch 'master' of https://github.jpl.nasa.gov/hysds-org/lightweight-jobs
+
+commit bd52746d67fd4118a57da6a91aeb907d8e162d12
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Feb 9 00:08:00 2017 +0000
+
+    malarout: modified checks in wget to be more generic
+
+commit 53a755f8a9d4a8a2fedd9d5b692b708c64f6cc2a
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Wed Feb 8 21:19:30 2017 +0000
+
+    mstarch: checking for figaro component
+
+commit 8523e09d43cc4fac7b376a64fd241bf88320c2da
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Feb 8 18:52:02 2017 +0000
+
+    malarout: wget fix for grfn-ops
+
+commit 97023af505574d62019d7539cd1b80f03278b3da
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Feb 8 01:53:23 2017 +0000
+
+    malarout: fix for wget script
+
+commit 276c7a8ffbf30338e2c41b12e49958c7cd3b7e0c
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Fri Feb 3 00:20:10 2017 +0000
+
+    malarout: fixes for purge and retry
+
+commit 9b4b7ccab0e11db1d31be4ddbc90f7c185e2d1a5
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Feb 2 07:41:27 2017 +0000
+
+    malarout: updated field for job id for retry job
+
+commit 19a0c8ec3e109055e28d425cec838d3b30e2403a
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Feb 2 04:35:12 2017 +0000
+
+    small fix for retry job
+
+commit 83ff1d782ce7b8abc4e692153a4d834ebef3c632
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Feb 2 01:55:49 2017 +0000
+
+    malarout: modified permission for retry.sh
+
+commit 7fe2d379f9a9e69b66f47e456725f2b338703046
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Feb 2 01:36:39 2017 +0000
+
+    malarout: corrected typo in mozart retry
+
+commit f5b27a8b94d305b2d40f1c6f215a76ddb9674f54
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Feb 2 01:12:58 2017 +0000
+
+    malarout: corrected key names for mozart from celery config
+
+commit c9d300882606f8d562352662efa3226471edcce2
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Feb 2 00:15:24 2017 +0000
+
+    malarout: updated mozart hysds io for email
+
+commit ce74c2f79d5534db16f7cc43b1a7c1710458adff
+Merge: 1d2aab4 e62ed73
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Feb 1 23:11:55 2017 +0000
+
+    Merge branch 'master' of https://github.jpl.nasa.gov/hysds-org/lightweight-jobs
+
+commit 1d2aab465717d8d4413bc4789ff5d025924548ac
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Feb 1 23:10:51 2017 +0000
+
+    malarout: added component key for mozart hysds.io
+
+commit e62ed73b8c9a49b69fbea1a8b888281a93e2da52
+Author: Namrata Malarout <Namrata.Malarout@jpl.nasa.gov>
+Date:   Wed Feb 1 14:43:48 2017 -0800
+
+    malarout: deleted datasets.json
+
+commit c275bdb576ecde1cc266ce82995439fffd0b6d4c
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Feb 1 22:30:19 2017 +0000
+
+    malarout: added purge and revoke for mozart
+
+commit de894d494e92c7ec87025ef0c629fdeebbc97e70
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Feb 1 19:01:18 2017 +0000
+
+    malarout: fixed attachment problem in wget
+
+commit b58191b32ce8747e51927b0fb61665b3e5c14f6d
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Feb 1 00:40:48 2017 +0000
+
+    malarout: fixed wget script
+
+commit bdd3f82500ef2a5a39ad75815c4fcfb54a325b04
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Feb 1 00:15:22 2017 +0000
+
+    malarout: fixed wget script
+
+commit 37636443829ea52ed2bef76ebfab7484b40db9f6
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Feb 1 00:00:48 2017 +0000
+
+    malarout: removing unnecessary params from wget
+
+commit 8e46dba4db6b0510b5873d03cf7ba3fcf4797fd4
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Tue Jan 31 23:16:46 2017 +0000
+
+    malarout: modified SMTP setup in notify_by_email
+
+commit 8b9a700fa10181a6d8400f24c23b3c112bcadf45
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Tue Jan 31 22:04:00 2017 +0000
+
+    malarout:added retry bash script
+
+commit 690cc5fee165e4b5669015524bbe2e037d072fbd
+Merge: b43f052 e7bc64b
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Fri Jan 27 19:34:21 2017 +0000
+
+    Merge branch 'master' of https://github.jpl.nasa.gov/hysds-org/lightweight-jobs
+
+commit b43f0522ae86d69fb77ee10931eda166c8ad2a43
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Fri Jan 27 19:31:04 2017 +0000
+
+    added retry and wget scripts
+
+commit e7bc64b5f1a54454e71b9897ebd9f7149649ea08
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Fri Jan 27 01:17:42 2017 +0000
+
+    mstarch: fixing JOBs name
+
+commit a296d2380cf53b22d5eea67c21a8ba88d861f987
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Fri Jan 27 01:17:13 2017 +0000
+
+    mstarch: reverrting postfix changes
+
+commit 013fbbf6f1a6d2411451cab92e3cf4ec794bf7f5
+Merge: dbf919e ade312a
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Fri Jan 27 01:16:12 2017 +0000
+
+    mstarch: merged
+
+commit ade312a9a3c7ff78b46f8fd0c0875fc36ac08c62
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Jan 25 19:49:19 2017 +0000
+
+    malarout: updated permissons for bash scripts
+
+commit 17689d094e8c7658d59e241d025ab36b9624c190
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Jan 25 19:02:54 2017 +0000
+
+    malarout: Fix for notify by email and deleting renamed job spec files
+
+commit f824202c0c9947bba2e3e50f48b9e637d45d6123
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Jan 25 17:33:00 2017 +0000
+
+    malarout: added wget script, fixed input handling in purge
+
+commit 7fa3e7e4d9ddb7342f97f1aa92ad2a4bdfd435b0
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Jan 25 17:05:00 2017 +0000
+
+    malarout: fixed input handling in purge script
+
+commit dbf919e596c5336b7c2d949e68129f13e3f13051
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Wed Jan 25 16:32:13 2017 +0000
+
+    mstarch: e-mail sending test changes
+
+commit 97be9fabb4d2b8ff8bbb85c64e5680acdea7cef1
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Jan 19 08:14:24 2017 +0000
+
+    mstarch: adding sendmail and server start
+
+commit cc33f0d43260dc16bcb6ad825d045a5f54a6e868
+Merge: 31503e1 ca10366
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Thu Jan 19 03:36:03 2017 +0000
+
+    Merge branch 'temp1'
+
+commit ca103664c7e05480ec0fc7b6ea3f3d8ae02e997c
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Thu Jan 19 03:33:43 2017 +0000
+
+    mstarch: fixing job-iterator errors
+
+commit 31503e1f231d30b6fac767f9020ff0c7041c464b
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Thu Jan 19 02:17:47 2017 +0000
+
+    mstarch: adding __inint__.py
+
+commit 676dd3018612f201a71fb9ec079b64c6bbcc5feb
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Jan 19 00:28:20 2017 +0000
+
+    malarout: modified Dockerfile
+
+commit 7b51cb12e9bad67bb1431127e656eb90e88fcd3d
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Jan 19 00:20:49 2017 +0000
+
+    malarout: modified Dockerfile
+
+commit 469743e23629b1e735baac619bec67312fb92b9a
+Merge: cab14cb 050b065
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Jan 18 23:07:15 2017 +0000
+
+    Merge branch 'master' of https://github.jpl.nasa.gov/hysds-org/lightweight-jobs
+
+commit cab14cb0b43e5caf76e5c11835d08d8989a718cf
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Jan 18 23:01:06 2017 +0000
+
+    malarout: updated Dockerfiles
+
+commit 050b065cb0521b8cd66c675e10cb349ba01c79f9
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Wed Jan 18 22:39:14 2017 +0000
+
+    mstarch: adding fixes for the job-iterator job
+
+commit 0450b14c86ea74cd96ec0c051522906d333c84ff
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Jan 18 21:11:13 2017 +0000
+
+    Fixes in purge and email
+
+commit 05077f4a2d9a1d7f99735aee9ac480280e73a492
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Wed Jan 18 20:40:46 2017 +0000
+
+    mstarch: job iterator updated to use new common REST submit lib
+
+commit 505eab6444ae057f3c64f88c9205d604a7c7f89a
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Jan 18 18:51:16 2017 +0000
+
+    malarout: added from field in hysds io for notify by email
+
+commit 300ac9ad57624770226e4201ba7765e7a5f564e3
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Wed Jan 18 18:32:56 2017 +0000
+
+    malarout: Modified notify by email to support both tosca and mozart
+
+commit b0594a3410bbbba58339eb97abf54d9184b1bee6
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Tue Jan 17 17:48:04 2017 +0000
+
+    malarout: modified hysds io and renamed purge action files
+
+commit 037a351a68636add90c760bc6899a105de9bebdb
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Fri Jan 13 17:25:25 2017 +0000
+
+    mstarch: moving datasey_jpath to have root at top os ES result
+
+commit b5618409223d4937634088a14359d4834461f8f7
+Merge: a4b40d5 39ab645
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Fri Jan 13 01:08:42 2017 +0000
+
+    Merge branch 'master' of https://github.jpl.nasa.gov/hysds-org/lightweight-jobs
+
+commit a4b40d53660875ac867bfbdcbc8bc517a89a366a
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Fri Jan 13 01:08:34 2017 +0000
+
+    mstarch: fixing kwargs and exposing errors
+
+commit 39ab645b829e22c3f9b085ed268d1e2c1a0568e8
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Jan 12 23:10:27 2017 +0000
+
+    malarout: fixed purge products job spec
+
+commit 5ad73ef767501c7e0d3ba8a3a15e40b44e0dffef
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Jan 12 22:37:46 2017 +0000
+
+    malarout: added .dockerignore
+
+commit f3200f291320c2b55e5a046b52bb271b03860c8d
+Merge: 51a3161 683ef50
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Jan 12 19:36:04 2017 +0000
+
+    Merge branch 'master' of https://github.jpl.nasa.gov/hysds-org/lightweight-jobs
+
+commit 51a3161be0f715f9d4fbdb5c7c0caf6dcf3c77f8
+Author: N Malarout <namrata.malarout@jpl.nasa.gov>
+Date:   Thu Jan 12 19:24:51 2017 +0000
+
+    malarout: Added purge products job
+
+commit 683ef505a95e860192e9987cf79b9e3d7607a982
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Thu Jan 12 04:06:19 2017 +0000
+
+    mstarch: removing best test jobs
+
+commit 7f4c48f9552eb5f54a5d66de43b0571ece573d4b
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Thu Jan 12 03:42:11 2017 +0000
+
+    mstarch: fixing job-iterator-job lambda
+
+commit 3bbe3ac4bf2c4bfcc504887ba3b5e54e1108fc95
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Thu Jan 12 03:07:55 2017 +0000
+
+    mstarch: more safe lambda functions
+
+commit 9648743e88ee7fe5bb1b076cf9e44a7d29d27685
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Thu Jan 12 02:46:41 2017 +0000
+
+    mstarch: created echo-best jobs for testing lambda
+
+commit e1dee7b95a431c8e345401f6a216af9e02d6a2d4
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Thu Jan 12 02:42:26 2017 +0000
+
+    mstarch: addinglambda functions to job-iterator-job
+
+commit 76e337a3ba449d09854effe5ff828a39df42f335
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Wed Jan 11 23:38:21 2017 +0000
+
+    mstarch: removing test code
+
+commit 3d9981151256704a9e2524e37897caa2e55e8b5a
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Wed Jan 11 22:58:28 2017 +0000
+
+    mstarch: adding mozart_url to job-iterator-job
+
+commit 652267247439a519be4367b0c95e918a41e87bb3
+Merge: 710908b c73f81b
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Wed Jan 11 22:18:36 2017 +0000
+
+    Merge branch 'master' of https://github.jpl.nasa.gov/hysds-org/lightweight-jobs
+
+commit c73f81bc7b8b0314807c1411ebb986058cc32dd0
+Merge: 1509860 9d786b4
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Wed Jan 11 22:17:48 2017 +0000
+
+    merging with job iterator
+
+commit 710908b6557e1f94c4b53b76657d577db5328e5b
+Merge: c3fa22e 1509860
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Wed Jan 11 22:01:19 2017 +0000
+
+    mstarch: mergeing in from tag v0.4-malarout
+
+commit c3fa22eb3f51e4e6b9d1a069b81c467bad1f31e6
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Wed Jan 11 21:52:30 2017 +0000
+
+    mstarch: job-iterator working v1
+
+commit 9d786b488f9f992451fdbb83ba1e00a1ef4f7b65
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Wed Jan 11 19:02:45 2017 +0000
+
+    mstarch: adding job-iterator-job files
+
+commit 1509860facc77ff15d0043adb2d825e2ea37f8cf
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Wed Jan 11 18:33:56 2017 +0000
+
+    malarout: added job iterator job spec
+
+commit 23c16bc788ff85de1e08292ee456f5be12986152
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Wed Jan 11 18:07:41 2017 +0000
+
+    malarout: added job specs for notify by email
+
+commit 9ac38363eedf34faaf1fd213b5d733903808565b
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Tue Jan 10 22:21:46 2017 +0000
+
+    lightweight hello world
+
+commit 5b6ba52fe915847cf475ac5a4d640a85aaa366a4
+Author: M Starch <Michael.D.Starch@jpl.nasa.gov>
+Date:   Fri Nov 18 01:10:39 2016 +0000
+
+    added readme
