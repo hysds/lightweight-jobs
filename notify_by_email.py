@@ -197,7 +197,9 @@ if __name__ == "__main__":
     elif component=="tosca":
 	es_url = app.conf["GRQ_ES_URL"]
 	query_idx = app.conf["DATASET_ALIAS"]
-	facetview_url = app.conf["TOSCA_URL"]
+	#facetview_url = app.conf["TOSCA_URL"]
+        #updating facetview_url with updated aria-search-beta hostname
+        facetview_url = "https://aria-search-beta.jpl.nasa.gov/search"
 
     cc_recipients = [i.strip() for i in emails.split(',')]
     bcc_recipients = []
