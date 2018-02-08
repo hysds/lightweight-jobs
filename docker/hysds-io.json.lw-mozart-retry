@@ -2,6 +2,7 @@
   "label":"Retry Jobs/Tasks",
   "component":"mozart",
   "submission_type":"individual",
+  "enable_dedup": false,
   "params" : [
     {
       "name": "retry_job_id",
