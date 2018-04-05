@@ -33,6 +33,21 @@ def wget_script(dataset=None):
 
     scan_result = r.json()
     count = scan_result['hits']['total']
+    #size = int(math.ceil(count/10.0))
+    #print("SIZE : %d" %size)
+    #scroll_id = scan_result['_scroll_id']
+    logging.debug('%s/%s/_search?search_type=scan&scroll=10m&size=%s' % (es_url, index, count))
+    r = requests.post('%s/%s/_search?search_type=scan&scroll=10m&size=%s' % (es_url, index, size), json.dumps(dataset))
+    if r.status_code != 200:
+        print("Failed to query ES. Got status code %d:\n%s" %(r.status_code, json.dumps(r.json(), indent=2)))
+        logger.debug("Failed to query ES. Got status code %d:\n%s" %
+                         (r.status_code, json.dumps(r.json(), indent=2)))
+    r.raise_for_status()
+    logger.debug("result: %s" % pformat(r.json()))
+
+    scan_result = r.json()
+    count = scan_result['hits']['total']
+
     scroll_id = scan_result['_scroll_id']
 
     # stream output a page at a time for better performance and lower memory footprint
