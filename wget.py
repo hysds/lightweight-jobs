@@ -37,7 +37,7 @@ def wget_script(dataset=None):
     #print("SIZE : %d" %size)
     #scroll_id = scan_result['_scroll_id']
     logging.debug('%s/%s/_search?search_type=scan&scroll=10m&size=%s' % (es_url, index, count))
-    r = requests.post('%s/%s/_search?search_type=scan&scroll=10m&size=%s' % (es_url, index, size), json.dumps(dataset))
+    r = requests.post('%s/%s/_search?search_type=scan&scroll=10m&size=%s' % (es_url, index, count), json.dumps(dataset))
     if r.status_code != 200:
         print("Failed to query ES. Got status code %d:\n%s" %(r.status_code, json.dumps(r.json(), indent=2)))
         logger.debug("Failed to query ES. Got status code %d:\n%s" %
