@@ -165,7 +165,7 @@ if __name__ == "__main__":
   
     # getting the script
     wget_script(query)
-    if email=="unused":
+    if emails=="unused":
 	make_product(rule_name, query)
     else:
     	# now email the query
