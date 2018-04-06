@@ -7,9 +7,12 @@ from hysds.celery import app
 import boto3
 from urlparse import urlparse
 
+PRODUCT_TEMPLATE = "product_downloader-{0}-{1}-{2}"
+
 #TODO: Setup logger for this job here.  Should log to STDOUT or STDERR as this is a job
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("hysds")
+
 
 def wget_script(dataset=None):
     """Return wget script."""
@@ -135,6 +138,21 @@ def get_s3_files(url):
                         files.extend(get_s3_files(folder))
         return files
 
+def make_product(rule_name, query):
+    '''
+    Make a product out of this WGET script
+    '''
+    with open("_context.json", "r") as fp:
+        context = json.load(fp)
+        name = PRODUCT_TEMPLATE.format(rule_name, context["username"],
+                                       datetime.datetime.now().strftime("%Y%m%dT%H%M%S"))
+    os.mkdir(name)
+    os.rename("wget_script.sh", "{0}/wget_script.bash".format(name))
+    with open("{0}/{0}.met.json".format(name), "w") as fp:
+        json.dump({"source_query": json.dumps(query)}, fp)
+    with open("{0}/{0}.dataset.json".format(name), "w") as fp:
+        json.dump({"id": name, "version": "v0.1"}, fp)
+
 if __name__ == "__main__":
     '''
     Main program of wget_script
@@ -147,16 +165,19 @@ if __name__ == "__main__":
   
     # getting the script
     wget_script(query)
-    # now email the query
-    attachments = None
-    cc_recipients = [i.strip() for i in emails.split(',')]
-    bcc_recipients = []
-    subject = "[monitor] (wget_script:%s)" % (rule_name)
-    body = "Product was ingested from query: %s" % query
-    body += "\n\nYou can use this wget script attached to download products.\n"
-    body += "Please rename wget_script.bash to wget_script.sh before running it."
-    if os.path.isfile('wget.tar.gz'):
-	wget_content = open('wget.tar.gz','r').read()
-	attachments = { 'wget.tar.gz':wget_content} 
-    notify_by_email.send_email(getpass.getuser(), cc_recipients, bcc_recipients, subject, body, attachments=attachments)
+    if email=="unused":
+	make_product(rule_name, query)
+    else:
+    	# now email the query
+    	attachments = None
+    	cc_recipients = [i.strip() for i in emails.split(',')]
+    	bcc_recipients = []
+    	subject = "[monitor] (wget_script:%s)" % (rule_name)
+    	body = "Product was ingested from query: %s" % query
+    	body += "\n\nYou can use this wget script attached to download products.\n"
+   	body += "Please rename wget_script.bash to wget_script.sh before running it."
+    	if os.path.isfile('wget.tar.gz'):
+	    wget_content = open('wget.tar.gz','r').read()
+	    attachments = { 'wget.tar.gz':wget_content} 
+    	notify_by_email.send_email(getpass.getuser(), cc_recipients, bcc_recipients, subject, body, attachments=attachments)
    

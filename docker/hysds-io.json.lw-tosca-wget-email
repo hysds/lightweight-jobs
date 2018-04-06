@@ -1,0 +1,22 @@
+{
+  "label":"Wget Script via E-mail",
+  "component":"tosca",
+  "submission_type":"individual",
+  "params" : [
+    {
+      "name": "query",
+      "type": "text",
+      "from": "passthrough"
+    },
+    {
+      "name": "emails",
+      "type": "text",
+      "from": "submitter"
+    },
+    {
+      "name": "name",
+      "type": "text",
+      "from": "passthrough"
+    }
+  ]
+}

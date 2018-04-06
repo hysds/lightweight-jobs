@@ -1,0 +1,28 @@
+{
+  "label":"Wget Script via Product",
+  "component":"tosca",
+  "submission_type":"individual",
+  "params" : [
+    {
+      "name": "query",
+      "type": "text",
+      "from": "passthrough"
+    },
+    {
+      "name": "emails",
+      "type": "text",
+      "from": "value",
+      "value": "unused"
+    },
+    {
+      "name": "name",
+      "type": "text",
+      "from": "passthrough"
+    },
+    {
+      "name": "username",
+      "from": "passthrough",
+      "type": "text"
+    }
+  ]
+}
