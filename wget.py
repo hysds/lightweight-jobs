@@ -6,6 +6,8 @@ import notify_by_email
 from hysds.celery import app
 import boto3
 from urlparse import urlparse
+import datetime
+
 
 PRODUCT_TEMPLATE = "product_downloader-{0}-{1}-{2}"
 
