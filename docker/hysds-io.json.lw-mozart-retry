@@ -18,6 +18,7 @@
       "name": "retry_count_max",
       "type": "text",
       "from": "submitter",
+      "default": "10",
       "lambda": "lambda x: int(x)"
     }
         ]

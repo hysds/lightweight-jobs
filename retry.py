@@ -103,8 +103,8 @@ def resubmit_jobs():
             # submit job
             queue = job_json['job_info']['job_queue']
             res = run_job.apply_async((job_json,), queue=queue,
-                                      time_limit=None,
-                                      soft_time_limit=None,
+                                      time_limit=job_json['job_info']['time_limit'],
+                                      soft_time_limit=job_json['job_info']['soft_time_limit'],
                                       priority=priority,
                                       task_id=job_json['task_id'])
         except Exception as ex:
