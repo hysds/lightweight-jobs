@@ -31,7 +31,8 @@ def resubmit_jobs():
       ctx = json.load(f)
 
     retry_count_max = ctx['retry_count_max']
-    for job_id in ctx['retry_job_id']:
+    retry_job_ids = ctx['retry_job_id'] if isinstance(ctx['retry_job_id'], list) else [ctx['retry_job_id']]
+    for job_id in retry_job_ids:
         try:
             ## get job json for ES
             rand_sleep()
@@ -88,7 +89,7 @@ def resubmit_jobs():
                 r.raise_for_status()
                 print "deleted original job status: %s" % job_json['job_id']
             except Exception, e:
-                print "Got error deleting job status %s: %s" % (ctx_json['retry_job_id'], traceback.format_exc())
+                print "Got error deleting job status %s: %s" % (job_json['job_id'], traceback.format_exc())
                 print "Continuing."
 
             # log queued status
