@@ -41,14 +41,18 @@ def resubmit_jobs():
 		print("Failed to query ES. Got status code %d:\n%s" % (response.status_code, json.dumps)(response.json(), indent = 2))
 	    response.raise_for_status()
             resp_json = response.json()
-   	     
-            #check retry_remaining_count
             job_json = resp_json["hits"]["hits"][0]["_source"]["job"]
 
+            # don't retry a retry
+            if job_json['type'].startswith('job-lw-mozart-retry'):
+                print "Cannot retry retry job %s. Skipping" % job_id
+                continue
+
+            #check retry_remaining_count
             if 'retry_count' in job_json:
-                if job_json['retry_count'] < retry_count_max :
+                if job_json['retry_count'] < retry_count_max:
     	            job_json['retry_count'] = int(job_json['retry_count']) + 1
-                elif job_json['retry_count'] == retry_count_max :
+                else:
                     print "Job reached retry_count_max limit. Cannot retry again."
                     continue
             else:
