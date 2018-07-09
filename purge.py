@@ -35,7 +35,7 @@ def purge_products(query,component,operation):
     start_url = "{0}/{1}/_search".format(es_url,es_index)
     scroll_url = "{0}/_search".format(es_url,es_index)
     
-    results = hysds_commons.request_utils.post_scrolled_json_responses(start_url,scroll_url,data=json.dumps(query),logger=logger)
+    results = hysds_commons.request_utils.post_scrolled_json_responses(start_url,scroll_url,generator=True,data=json.dumps(query),logger=logger)
     print results
     
     if component=='tosca':
