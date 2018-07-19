@@ -1,7 +1,7 @@
 {
  "required_queues":["system-jobs-queue"],
  "command":"/home/ops/verdi/ops/lightweight-jobs/aws_get.sh",
- "imported_worker_files":{"/home/ops/.aws":"/home/ops/.aws"}, 
+ "imported_worker_files":{"$HOME/.aws":"/home/ops/.aws"}, 
  "disk_usage":"3GB",
   "params" : [
     {
