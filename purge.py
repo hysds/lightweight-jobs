@@ -51,7 +51,8 @@ def purge_products(query,component,operation):
     
    		#making osaka call to delete product
 		print 'paramater being passed to osaka.main.rmall: ',best
-		osaka.main.rmall(best)
+		if best is not None: osaka.main.rmall(best)
+
 		#removing the metadata
 		hysds_commons.metadata_rest_utils.remove_metadata(es_url,index,es_type,ident,logger)
 
