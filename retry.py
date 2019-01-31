@@ -24,6 +24,10 @@ def rand_sleep(sleep_min=0.1, sleep_max=1): time.sleep(uniform(sleep_min, sleep_
 def get_new_job_priority(old_priority, increment_by, new_priority):
     if increment_by is not None:
         priority = int(old_priority) + int(increment_by)
+        if priority == 0 or priority == 9:
+            print("Not applying {} on previous priority of {} as it needs to be in range 0 to 8".format(increment_by,
+                                                                                                        old_priority))
+            priority = int(old_priority)
     else:
         priority = int(new_priority)
     return priority
