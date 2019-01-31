@@ -54,6 +54,7 @@ def resubmit_jobs():
     retry_count_max = ctx['retry_count_max']
     retry_job_ids = ctx['retry_job_id'] if isinstance(ctx['retry_job_id'], list) else [ctx['retry_job_id']]
     for job_id in retry_job_ids:
+        print("Retrying job: {}".format(job_id))
         try:
             # get job json for ES
             rand_sleep()
