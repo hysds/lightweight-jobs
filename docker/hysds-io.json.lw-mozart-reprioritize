@@ -1,5 +1,5 @@
 {
-  "label":"Retry Jobs/Tasks",
+  "label":"Reprioritize Jobs/Tasks",
   "component":"mozart",
   "submission_type":"individual",
   "enable_dedup": false,
@@ -22,9 +22,9 @@
       "lambda": "lambda x: int(x)"
     },
     {
-      "name": "job_priority_increment",
-      "type": "enum",
-      "enumerables": ["-1","0","1"],
+      "name": "new_job_priority",
+      "from": "submitter",
+      "type": "text",
       "default": "0",
       "lambda": "lambda x: int(x)"
     }

@@ -16,7 +16,7 @@
       "destination": "context"
     },
     {
-      "name": "job_priority_increment",
+      "name": "new_job_priority",
       "destination": "context"
     }
   ]
