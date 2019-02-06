@@ -1,5 +1,5 @@
 {
-  "label":"Purge jobs",
+  "label":"_Purge_jobs",
   "component":"mozart",
   "submission_type":"individual",
   "params" : [

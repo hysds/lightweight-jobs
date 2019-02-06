@@ -1,5 +1,5 @@
 {
-  "label":"Revoke / Stop job",
+  "label":"_Revoke / _Stop Job",
   "component":"mozart",
   "submission_type":"individual",
   "params" : [
