@@ -1,7 +1,10 @@
 {
   "required_queues":["system-jobs-queue"],
   "command":"/home/ops/verdi/ops/lightweight-jobs/purge.sh",
-  "imported_worker_files":{"$HOME/.aws":"/home/ops/.aws"},
+  "imported_worker_files":{
+    "$HOME/.aws":"/home/ops/.aws",
+    "$HOME/.azure": "/home/ops/.azure"
+  },
   "disk_usage":"3GB",
   "params" : [
     {
