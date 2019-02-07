@@ -5,7 +5,7 @@ import tarfile
 import notify_by_email
 from hysds.celery import app
 import boto3
-from urlparse import urlparse
+from urllib.parse import urlparse
 
 #TODO: Setup logger for this job here.  Should log to STDOUT or STDERR as this is a job
 logging.basicConfig(level=logging.DEBUG)
@@ -19,14 +19,14 @@ def aws_get_script(dataset=None):
     es_url = app.conf["GRQ_ES_URL"]
     index = app.conf["DATASET_ALIAS"]
     #facetview_url = app.conf["GRQ_URL"]
-    print('%s/%s/_search?search_type=scan&scroll=10m&size=100' % (es_url, index))
+    print(('%s/%s/_search?search_type=scan&scroll=10m&size=100' % (es_url, index)))
     logging.debug('%s/%s/_search?search_type=scan&scroll=10m&size=100' % (es_url, index))
-    print json.dumps(dataset)
+    print(json.dumps(dataset))
     logging.debug(json.dumps(dataset))
 
     r = requests.post('%s/%s/_search?search_type=scan&scroll=10m&size=100' % (es_url, index), json.dumps(dataset))
     if r.status_code != 200:
-        print("Failed to query ES. Got status code %d:\n%s" %(r.status_code, json.dumps(r.json(), indent=2)))
+        print(("Failed to query ES. Got status code %d:\n%s" %(r.status_code, json.dumps(r.json(), indent=2))))
 	logger.debug("Failed to query ES. Got status code %d:\n%s" %
                          (r.status_code, json.dumps(r.json(), indent=2)))
     r.raise_for_status()

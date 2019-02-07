@@ -50,7 +50,7 @@ def purge_products(query,component,operation):
 				best = url
     
    		#making osaka call to delete product
-		print 'paramater being passed to osaka.main.rmall: ',best
+		print('paramater being passed to osaka.main.rmall: ',best)
 		if best is not None: osaka.main.rmall(best)
 
 		#removing the metadata
@@ -106,7 +106,7 @@ if __name__ == "__main__":
     #dec = decoded_string.replace('u""','"')
     #decoded_inp = dec.replace('""','"')
     decoded_inp = sys.argv[1]
-    print decoded_inp
+    print(decoded_inp)
     if decoded_inp.startswith('{"query"') or decoded_inp.startswith("{u'query'") or decoded_inp.startswith("{'query'"):
     	query_obj = json.loads(decoded_inp)
     else:

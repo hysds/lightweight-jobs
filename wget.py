@@ -5,7 +5,7 @@ import tarfile
 import notify_by_email
 from hysds.celery import app
 import boto3
-from urlparse import urlparse
+from urllib.parse import urlparse
 import datetime
 
 
@@ -23,14 +23,14 @@ def wget_script(dataset=None):
     es_url = app.conf["GRQ_ES_URL"]
     index = app.conf["DATASET_ALIAS"]
     #facetview_url = app.conf["GRQ_URL"]
-    print('%s/%s/_search?search_type=scan&scroll=10m&size=100' % (es_url, index))
+    print(('%s/%s/_search?search_type=scan&scroll=10m&size=100' % (es_url, index)))
     logging.debug('%s/%s/_search?search_type=scan&scroll=10m&size=100' % (es_url, index))
-    print json.dumps(dataset)
+    print(json.dumps(dataset))
     logging.debug(json.dumps(dataset))
 
     r = requests.post('%s/%s/_search?search_type=scan&scroll=10m&size=100' % (es_url, index), json.dumps(dataset))
     if r.status_code != 200:
-        print("Failed to query ES. Got status code %d:\n%s" %(r.status_code, json.dumps(r.json(), indent=2)))
+        print(("Failed to query ES. Got status code %d:\n%s" %(r.status_code, json.dumps(r.json(), indent=2))))
 	logger.debug("Failed to query ES. Got status code %d:\n%s" %
                          (r.status_code, json.dumps(r.json(), indent=2)))
     r.raise_for_status()
@@ -44,7 +44,7 @@ def wget_script(dataset=None):
     logging.debug('%s/%s/_search?search_type=scan&scroll=10m&size=%s' % (es_url, index, count))
     r = requests.post('%s/%s/_search?search_type=scan&scroll=10m&size=%s' % (es_url, index, count), json.dumps(dataset))
     if r.status_code != 200:
-        print("Failed to query ES. Got status code %d:\n%s" %(r.status_code, json.dumps(r.json(), indent=2)))
+        print(("Failed to query ES. Got status code %d:\n%s" %(r.status_code, json.dumps(r.json(), indent=2))))
         logger.debug("Failed to query ES. Got status code %d:\n%s" %
                          (r.status_code, json.dumps(r.json(), indent=2)))
     r.raise_for_status()
@@ -123,7 +123,7 @@ def wget_script(dataset=None):
 
 def get_s3_files(url):
         files = []
-	print("Url in the get_s3_files function: %s",url)
+	print(("Url in the get_s3_files function: %s",url))
         parsed_url = urlparse(url)
         bucket = parsed_url.hostname.split('.', 1)[0]
         client = boto3.client('s3')
