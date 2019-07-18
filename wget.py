@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("hysds")
 
 
-def wget_script(dataset=None):
+def wget_script(dataset=None, glob_list=None):
     """Return wget script."""
 
     # query
@@ -56,7 +56,7 @@ def wget_script(dataset=None):
     scroll_id = scan_result['_scroll_id']
 
     # stream output a page at a time for better performance and lower memory footprint
-    def stream_wget(scroll_id):
+    def stream_wget(scroll_id, glob_list=None):
         #formatted_source = format_source(source)
         yield '#!/bin/bash\n#\n' + \
               '# query:\n#\n' + \
@@ -92,6 +92,8 @@ def wget_script(dataset=None):
                                 cut_dirs = 6
                 if '.s3-website' in url or 'amazonaws.com' in url:
                         files = get_s3_files(url)
+                        if glob_list:
+                            files = glob_filter(files, glob_list)
                         for file in files:
                                 yield 'echo "downloading  %s"\n' % file
                                 if 's1a_ifg' in url:
@@ -111,7 +113,7 @@ def wget_script(dataset=None):
     
     # malarout: interate over each line of stream_wget response, and write to a file which is later attached to the email.
     with open('wget_script.sh','w') as f:
-        for i in stream_wget(scroll_id):
+        for i in stream_wget(scroll_id, glob_list):
                 f.write(i)
 
     # for gzip compressed use file extension .tar.gz and modifier "w:gz"
@@ -177,6 +179,17 @@ def make_product(rule_name, query):
     with open("{0}/{0}.dataset.json".format(name), "w") as fp:
         json.dump({"id": name, "version": "v0.1"}, fp)
 
+def glob_filter(names,pattern):
+    import fnmatch
+    files = []
+    for pat in pattern:
+        matching = fnmatch.filter(names, "*" + pat)
+        files.extend(matching)
+    #unique list
+    retfiles_set = set(files)
+    print("Got the following files: %s" % str(retfiles_set))
+    return list(retfiles_set)
+
 if __name__ == "__main__":
     '''
     Main program of wget_script
@@ -186,9 +199,22 @@ if __name__ == "__main__":
     query = json.loads(sys.argv[1]) 
     emails = sys.argv[2]
     rule_name = sys.argv[3]
-  
+
+    # get the glob
+    try:
+        context_file = '_context.json'
+        with open(context_file, 'r') as fin:
+            context = json.load(fin)
+    except:
+        raise Exception('unable to parse _context.json from work directory')
+
+    globs = None
+    if "glob" in context:
+        glob_strs = context["glob"]
+        globs = [item.strip() for item in glob_strs.split(',')]
+        print("Got the following globs: %s" % str(globs))
     # getting the script
-    wget_script(query)
+    wget_script(query, globs)
     if emails=="unused":
 	make_product(rule_name, query)
     else:
