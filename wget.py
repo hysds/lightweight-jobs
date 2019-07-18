@@ -183,7 +183,7 @@ def glob_filter(names,pattern):
     import fnmatch
     files = []
     for pat in pattern:
-        matching = fnmatch.filter(names, pat)
+        matching = fnmatch.filter(names, "*" + pat)
         files.extend(matching)
     #unique list
     retfiles_set = set(files)
