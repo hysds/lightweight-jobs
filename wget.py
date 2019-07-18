@@ -113,7 +113,7 @@ def wget_script(dataset=None, glob_list=None):
     
     # malarout: interate over each line of stream_wget response, and write to a file which is later attached to the email.
     with open('wget_script.sh','w') as f:
-        for i in stream_wget(scroll_id):
+        for i in stream_wget(scroll_id, glob_list):
                 f.write(i)
 
     # for gzip compressed use file extension .tar.gz and modifier "w:gz"
@@ -187,6 +187,7 @@ def glob_filter(names,pattern):
         files.extend(matching)
     #unique list
     retfiles_set = set(files)
+    print("Got the following files: %s" % str(retfiles_set))
     return list(retfiles_set)
 
 if __name__ == "__main__":
@@ -211,8 +212,9 @@ if __name__ == "__main__":
     if "glob" in context:
         glob_strs = context["glob"]
         globs = [item.strip() for item in glob_strs.split(',')]
+        print("Got the following globs: %s" % str(globs))
     # getting the script
-    wget_script(query,globs)
+    wget_script(query, globs)
     if emails=="unused":
 	make_product(rule_name, query)
     else:
