@@ -17,7 +17,7 @@
       "name": "glob",
       "type": "text",
       "from": "submitter",
-      "default": "*fn*_logra2a1*.tif,*logamp*.tif,*.dem*,*msk.tif",
+      "default": "N_*fn*_logra2a1.tif,N_*logamp*.tif,*.dem*",N_*_msk.tif",
       "placeholder": "A comma seperated list of globs to download"
     },
     {
