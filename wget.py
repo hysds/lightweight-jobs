@@ -106,20 +106,15 @@ def wget_script(dataset=None, glob_list=None):
                     else:
                         cut_dirs = 6
                 if '.s3-website' in url or 'amazonaws.com' in url:
-                    files = get_s3_files(url)
-                    for file in files:
-                        yield 'echo "downloading  %s"\n' % file
-                        if 's1a_ifg' in url:
-                            yield "%s --cut-dirs=%d %s\n" % (wget_cmd, cut_dirs, file)
-                        else:
-                                cut_dirs = 6
-                if '.s3-website' in url or 'amazonaws.com' in url:
                         files = get_s3_files(url)
                         if glob_list:
                             files = glob_filter(files, glob_list)
                         for file in files:
                                 yield 'echo "downloading  %s"\n' % file
-                                yield "%s --cut-dirs=%d %s\n" % (wget_cmd, cut_dirs, file)
+                                if 's1a_ifg' in url:
+                                    yield "%s --cut-dirs=%d %s\n" % (wget_cmd, cut_dirs, file)
+                                else:
+                                    yield "%s --cut-dirs=%d %s\n" % (wget_cmd, cut_dirs, file)
                 if 'aria2-dav.jpl.nasa.gov' in url:
                     yield 'echo "downloading  %s"\n' % url
                     yield "%s --cut-dirs=%d %s/\n" % (wget_cmd_password, (cut_dirs+1), url)
