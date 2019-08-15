@@ -1,0 +1,29 @@
+{
+  "label":"Wget Script Glob Select via E-mail",
+  "component":"tosca",
+  "submission_type":"individual",
+  "params" : [
+    {
+      "name": "query",
+      "type": "text",
+      "from": "passthrough"
+    },
+    {
+      "name": "emails",
+      "type": "text",
+      "from": "submitter"
+    },
+    {
+      "name": "glob",
+      "type": "text",
+      "from": "submitter",
+      "default": "*fn*_logra2a1*.tif,*logamp*.tif,*.dem*,*msk.tif",
+      "placeholder": "A comma seperated list of globs to download"
+    },
+    {
+      "name": "name",
+      "type": "text",
+      "from": "passthrough"
+    }
+  ]
+}
