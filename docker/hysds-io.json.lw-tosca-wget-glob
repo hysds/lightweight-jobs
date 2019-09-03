@@ -25,7 +25,8 @@
       "type": "text",
       "from": "submitter",
       "default": "*tiles*",
-      "placeholder": "A comma seperated list of globs to exclude from included list"
+      "optional": true,
+      "placeholder": "(Optional) A comma seperated list of globs to exclude from included list",
     },
     {
       "name": "name",
