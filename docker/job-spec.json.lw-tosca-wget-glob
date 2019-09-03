@@ -19,7 +19,11 @@
       "destination": "positional"
     },
     {
-      "name": "glob",
+      "name": "include_glob",
+      "destination": "context"
+    },
+    {
+      "name": "exclude_glob",
       "destination": "context"
     }
    ]
