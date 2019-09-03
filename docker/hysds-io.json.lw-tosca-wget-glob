@@ -26,7 +26,7 @@
       "from": "submitter",
       "default": "*tiles*",
       "optional": true,
-      "placeholder": "(Optional) A comma seperated list of globs to exclude from included list",
+      "placeholder": "(Optional) A comma seperated list of globs to exclude from included list"
     },
     {
       "name": "name",
