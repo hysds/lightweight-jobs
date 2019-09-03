@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("hysds")
 
 
-def wget_script(dataset=None, glob_list=None):
+def wget_script(dataset=None, glob_dict=None):
     """Return wget script."""
 
     # query
@@ -56,7 +56,7 @@ def wget_script(dataset=None, glob_list=None):
     scroll_id = scan_result['_scroll_id']
 
     # stream output a page at a time for better performance and lower memory footprint
-    def stream_wget(scroll_id, glob_list=None):
+    def stream_wget(scroll_id, glob_dict=None):
         #formatted_source = format_source(source)
         yield '#!/bin/bash\n#\n' + \
               '# query:\n#\n' + \
@@ -92,8 +92,8 @@ def wget_script(dataset=None, glob_list=None):
                                 cut_dirs = 6
                 if '.s3-website' in url or 'amazonaws.com' in url:
                         files = get_s3_files(url)
-                        if glob_list:
-                            files = glob_filter(files, glob_list)
+                        if glob_dict:
+                            files = glob_filter(files, glob_dict)
                         for file in files:
                                 yield 'echo "downloading  %s"\n' % file
                                 if 's1a_ifg' in url:
@@ -113,7 +113,7 @@ def wget_script(dataset=None, glob_list=None):
     
     # malarout: interate over each line of stream_wget response, and write to a file which is later attached to the email.
     with open('wget_script.sh','w') as f:
-        for i in stream_wget(scroll_id, glob_list):
+        for i in stream_wget(scroll_id, glob_dict):
                 f.write(i)
 
     # for gzip compressed use file extension .tar.gz and modifier "w:gz"
@@ -179,16 +179,40 @@ def make_product(rule_name, query):
     with open("{0}/{0}.dataset.json".format(name), "w") as fp:
         json.dump({"id": name, "version": "v0.1"}, fp)
 
-def glob_filter(names,pattern):
+def glob_filter(names, glob_dict):
     import fnmatch
     files = []
-    for pat in pattern:
-        matching = fnmatch.filter(names, "*" + pat)
-        files.extend(matching)
+    files_exclude = []
+    include_csv = glob_dict.get("include", None)
+    exclude_csv = glob_dict.get("exclude", None)
+
+    if include_csv:
+        pattern_list = [item.strip() for item in include_csv.split(',')]
+
+        for pat in pattern_list:
+            matching = fnmatch.filter(names, "*" + pat)
+            files.extend(matching)
+        print("Got the following files to include: %s" % str(files))
+
+
+    # TODO: continue working from here, we need to find a way to esclude from the current file list
+    if exclude_csv:
+        pattern_list_exc = [item.strip() for item in exclude_csv.split(',')]
+
+
+        for pat in pattern_list_exc:
+            matching = fnmatch.filter(names, "*" + pat)
+            files_exclude.extend(matching)
+
+        files_exclude = list(set(files_exclude))
+        print("Got the following files to exclude: %s" % str(files_exclude))
+
     #unique list
-    retfiles_set = set(files)
+    files_final = [x for x in files if x not in files_exclude]
+    retfiles_set = set(files_final)
     print("Got the following files: %s" % str(retfiles_set))
-    return list(retfiles_set)
+    return list(files_final)
+
 
 if __name__ == "__main__":
     '''
@@ -208,13 +232,12 @@ if __name__ == "__main__":
     except:
         raise Exception('unable to parse _context.json from work directory')
 
-    globs = None
-    if "glob" in context:
-        glob_strs = context["glob"]
-        globs = [item.strip() for item in glob_strs.split(',')]
-        print("Got the following globs: %s" % str(globs))
+    glob_dict = None
+    if "include_glob" in context and "exclude_glob" in context:
+        glob_dict = {"include":context["include_glob"], "exclude": context["exclude_glob"]}
+
     # getting the script
-    wget_script(query, globs)
+    wget_script(query, glob_dict)
     if emails=="unused":
 	make_product(rule_name, query)
     else:
