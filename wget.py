@@ -194,8 +194,6 @@ def glob_filter(names, glob_dict):
             files.extend(matching)
         print("Got the following files to include: %s" % str(files))
 
-
-    # TODO: continue working from here, we need to find a way to esclude from the current file list
     if exclude_csv:
         pattern_list_exc = [item.strip() for item in exclude_csv.split(',')]
 
