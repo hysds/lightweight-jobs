@@ -1,6 +1,8 @@
 {
   "command":"echo",
   "disk_usage":"1GB",
+  "soft_time_limit": 86400,
+  "time_limit": 86700,
   "params" : [
     {
       "name": "echo_var",

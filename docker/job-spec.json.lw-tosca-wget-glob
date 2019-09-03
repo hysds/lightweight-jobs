@@ -1,8 +1,10 @@
 {
- "required_queues":["system-jobs-queue"],
- "command":"/home/ops/verdi/ops/lightweight-jobs/wget.sh",
- "imported_worker_files":{"$HOME/.aws":"/home/ops/.aws"},
- "disk_usage":"3GB",
+  "required_queues":["system-jobs-queue"],
+  "command":"/home/ops/verdi/ops/lightweight-jobs/wget.sh",
+  "imported_worker_files":{"$HOME/.aws":"/home/ops/.aws"},
+  "disk_usage":"3GB",
+  "soft_time_limit": 86400,
+  "time_limit": 86700,
   "params" : [
     {
       "name": "query",

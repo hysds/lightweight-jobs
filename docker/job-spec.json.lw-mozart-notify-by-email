@@ -2,6 +2,8 @@
   "required_queues":["system-jobs-queue"],
   "command":"/home/ops/verdi/ops/lightweight-jobs/notify_by_email.sh",
   "disk_usage":"3GB",
+  "soft_time_limit": 86400,
+  "time_limit": 86700,
   "params" : [
     {
       "name": "id",
