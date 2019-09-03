@@ -1,6 +1,6 @@
 {
   "label":"_Purge_jobs",
-  "component":"mozart",
+  "component":"figaro",
   "submission_type":"individual",
   "params" : [
     {

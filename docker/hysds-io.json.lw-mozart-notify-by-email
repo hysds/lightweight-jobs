@@ -1,6 +1,6 @@
 {
   "label":"Notify by email", 
-  "component":"mozart",
+  "component":"figaro",
   "submission_type":"iteration",
   "params" : [
     {

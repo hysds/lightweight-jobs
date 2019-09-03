@@ -1,6 +1,6 @@
 {
   "label":"_Revoke / _Stop Job",
-  "component":"mozart",
+  "component":"figaro",
   "submission_type":"individual",
   "params" : [
     {

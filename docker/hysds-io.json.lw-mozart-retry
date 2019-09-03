@@ -1,6 +1,6 @@
 {
   "label":"Retry Jobs/Tasks",
-  "component":"mozart",
+  "component":"figaro",
   "submission_type":"individual",
   "enable_dedup": false,
   "params" : [
