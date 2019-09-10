@@ -114,6 +114,7 @@ def wget_script(dataset=None, glob_dict=None):
                         if 's1a_ifg' in url:
                             yield "%s --cut-dirs=%d %s\n" % (wget_cmd, cut_dirs, file)
                         else:
+                            yield "%s --cut-dirs=%d %s\n" % (wget_cmd, cut_dirs, file)
                 if 'aria2-dav.jpl.nasa.gov' in url:
                     yield 'echo "downloading  %s"\n' % url
                     yield "%s --cut-dirs=%d %s/\n" % (wget_cmd_password, (cut_dirs+1), url)
