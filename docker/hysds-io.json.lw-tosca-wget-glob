@@ -14,11 +14,19 @@
       "from": "submitter"
     },
     {
-      "name": "glob",
+      "name": "include_glob",
       "type": "text",
       "from": "submitter",
-      "default": "*fn*_logra2a1*.tif,*logamp*.tif,*.dem*,*msk.tif",
+      "default": "*final*",
       "placeholder": "A comma seperated list of globs to download"
+    },
+    {
+      "name": "exclude_glob",
+      "type": "text",
+      "from": "submitter",
+      "default": "*tiles*",
+      "optional": true,
+      "placeholder": "(Optional) A comma seperated list of globs to exclude from included list"
     },
     {
       "name": "name",
