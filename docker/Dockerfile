@@ -9,4 +9,5 @@ COPY . /home/ops/verdi/ops/lightweight-jobs
 
 # set entrypoint
 WORKDIR /home/ops
+COPY docker/entrypoint /docker-entrypoint.sh
 CMD ["/bin/bash", "--login"]
