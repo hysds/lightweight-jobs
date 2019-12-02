@@ -8,5 +8,7 @@ USER ops
 COPY . /home/ops/verdi/ops/lightweight-jobs
 
 # set entrypoint
+ENTRYPOINT ["/entrypoint-pge-with-stats.sh"]
+
 WORKDIR /home/ops
 CMD ["/bin/bash", "--login"]
