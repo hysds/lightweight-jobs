@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source $HOME/verdi/bin/activate
+source ~/.bash_profile
 
 BASE_PATH=$(dirname "${BASH_SOURCE}")
 
