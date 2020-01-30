@@ -1,6 +1,6 @@
 {
   "required_queues":["system-jobs-queue"],
-  "command":"/home/ops/verdi/ops/lightweight-jobs/purge.sh",
+  "command":"python /home/ops/verdi/ops/lightweight-jobs/purge.py",
   "imported_worker_files":{
     "$HOME/.aws":"/home/ops/.aws",
     "$HOME/.azure": "/home/ops/.azure"
@@ -11,15 +11,15 @@
   "params" : [
     {
       "name": "query",
-      "destination": "positional"
+      "destination": "context"
     },
     {
       "name": "component",
-      "destination": "positional"
+      "destination": "context"
     },
     {
       "name": "operation",
-      "destination": "positional"
+      "destination": "context"
     }
    ]
 }

@@ -1,32 +1,34 @@
 #!/bin/env python
 import json
 import logging
-import sys
 import osaka.main
 from hysds.celery import app
-
 from hysds_commons.elasticsearch_utils import ElasticsearchUtility
 
-# TODO: Setup logger for this job here.  Should log to STDOUT or STDERR as this is a job
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger("hysds")
+LOG_FILE_NAME = 'purge.log'
+logging.basicConfig(filename=LOG_FILE_NAME, filemode='a', level=logging.DEBUG)
+logger = logging
+
+
+def read_context():
+    with open('_context.json', 'r') as f:
+        cxt = json.load(f)
+        return cxt
 
 
 def purge_products(query, component, operation):
     """
     Iterator used to iterate across a query result and submit jobs for every hit
-    @param es_url - ElasticSearch URL to hit with query
-    @param es_index - Index in ElasticSearch to hit with query (usually an alias)
-    @param username - name of the user owning this submission
-    @param query - query to post to ElasticSearch and whose result will be iterated, JSON sting enc
-    @param kwargs - key-word args to match to HySDS IO
+    :param query: query to post to ElasticSearch and whose result will be iterated, JSON sting enc
+    :param component: tosca || figaro
+    :param operation: purge or something else
     """
     logger.debug("Doing %s for %s with query: %s", operation, component, query)
 
     if component == "mozart" or component == "figaro":
         es_url = app.conf["JOBS_ES_URL"]
         es_index = app.conf["STATUS_ALIAS"]
-    elif component == "tosca":
+    else:  # "tosca"
         es_url = app.conf["GRQ_ES_URL"]
         es_index = app.conf["DATASET_ALIAS"]
 
@@ -52,10 +54,10 @@ def purge_products(query, component, operation):
 
             # removing the metadata
             es.delete_by_id(index, ident)
+            logger.info('Purged %s' % ident)
 
     else:
-        # purge job from index
-        purge = True if operation == 'purge' else False
+        purge = True if operation == 'purge' else False  # purge job from index
 
         for result in results:
             uuid = result["_source"]['uuid']
@@ -87,25 +89,17 @@ def purge_products(query, component, operation):
             logger.info('Removing document from index %s for %s', index, payload_id)
             es.delete_by_id(index, payload_id)
             logger.info('Removed %s from index: %s', payload_id, index)
-        logger.info('Finished\n')
+        logger.info('Finished purging')
 
 
 if __name__ == "__main__":
     """Main program of purge_products"""
+    context = read_context()  # reading the context file
 
-    # encoding to a JSON object
-    # decoded_string = sys.argv[1].decode('string_escape')
-    # dec = decoded_string.replace('u""','"')
-    # decoded_inp = dec.replace('""','"')
-    decoded_inp = sys.argv[1]
-    print(decoded_inp)
+    component_val = context['component']
+    operation_val = context['operation']
 
-    if decoded_inp.startswith('{"query"') or decoded_inp.startswith("{u'query'") or decoded_inp.startswith("{'query'"):
-        query_obj = json.loads(decoded_inp)
-    else:
-        # TODO: not sure what this means
-        query_obj["query"] = json.loads(decoded_inp)
+    query_obj = context['query']
+    query_obj = json.loads(query_obj)
 
-    component = sys.argv[2]
-    operation = sys.argv[3]
-    purge_products(query_obj, component, operation)
+    purge_products(query_obj, component_val, operation_val)
