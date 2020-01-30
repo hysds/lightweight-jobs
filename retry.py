@@ -13,7 +13,7 @@ from hysds.log_utils import log_job_status
 from hysds_commons.elasticsearch_utils import ElasticsearchUtility
 
 JOBS_ES_URL = app.conf["JOBS_ES_URL"]
-JOB_INDEX = app.conf["JOB_INDEX"]
+JOB_STATUS_ALIAS = app.conf["STATUS_ALIAS"]
 es = ElasticsearchUtility(JOBS_ES_URL)
 
 
@@ -27,7 +27,7 @@ def query_es(job_id):
             }
         }
     }
-    doc = es.search(JOB_INDEX, query_json)
+    doc = es.search(JOB_STATUS_ALIAS, query_json)
     return doc
 
 
@@ -127,7 +127,7 @@ def resubmit_jobs():
 
             # delete old job status
             rand_sleep()
-            es.delete_by_id(JOB_INDEX, job_id)
+            es.delete_by_id(JOB_STATUS_ALIAS, job_id)
 
             # log queued status
             rand_sleep()
