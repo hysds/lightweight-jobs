@@ -6,15 +6,21 @@ import traceback
 from random import randint, uniform
 from datetime import datetime
 from celery import uuid
+
 from hysds.celery import app
 from hysds.orchestrator import run_job
 from hysds.log_utils import log_job_status
-
 from hysds_commons.elasticsearch_utils import ElasticsearchUtility
 
 JOBS_ES_URL = app.conf["JOBS_ES_URL"]
 JOB_STATUS_ALIAS = app.conf["STATUS_ALIAS"]
 es = ElasticsearchUtility(JOBS_ES_URL)
+
+
+def read_context():
+    with open('_context.json', 'r') as f:
+        cxt = json.load(f)
+        return cxt
 
 
 def query_es(job_id):
@@ -28,6 +34,8 @@ def query_es(job_id):
         }
     }
     doc = es.search(JOB_STATUS_ALIAS, query_json)
+    if doc['hits']['total']['value'] == 0:
+        raise LookupError('job id %s not found in Elasticsearch' % job_id)
     return doc
 
 
@@ -47,32 +55,32 @@ def get_new_job_priority(old_priority, increment_by, new_priority):
     return priority
 
 
-def resubmit_jobs():
+def resubmit_jobs(context):
+    """
+    logic to resubmit the job
+    :param context: contents from _context.json
+    """
     # random sleep to prevent from getting ElasticSearch errors:
     # 429 Client Error: Too Many Requests
     time.sleep(randint(1, 5))
-    # can call submit_job
 
     # iterate through job ids and query to get the job json
-    with open('_context.json') as f:
-        ctx = json.load(f)
-
     increment_by = None
     new_priority = None
-    if "job_priority_increment" in ctx:
-        increment_by = ctx["job_priority_increment"]
+    if "job_priority_increment" in context:
+        increment_by = context["job_priority_increment"]
     else:
-        new_priority = ctx["new_job_priority"]
+        new_priority = context["new_job_priority"]
 
-    retry_count_max = ctx['retry_count_max']
+    retry_count_max = context['retry_count_max']
 
-    if isinstance(ctx['retry_job_id'], list):
-        retry_job_ids = ctx['retry_job_id']
+    if isinstance(context['retry_job_id'], list):
+        retry_job_ids = context['retry_job_id']
     else:
-        retry_job_ids = [ctx['retry_job_id']]
+        retry_job_ids = [context['retry_job_id']]
 
     for job_id in retry_job_ids:
-        print(("Retrying job: {}".format(job_id)))
+        print(("Validating retry job: {}".format(job_id)))
         try:
             # get job json for ES
             rand_sleep()
@@ -131,11 +139,13 @@ def resubmit_jobs():
 
             # log queued status
             rand_sleep()
-            job_status_json = {'uuid': task_id,
-                               'job_id': job_id,
-                               'payload_id': job_json['job_info']['job_payload']['payload_task_id'],
-                               'status': 'job-queued',
-                               'job': job_json}
+            job_status_json = {
+                'uuid': task_id,
+                'job_id': job_id,
+                'payload_id': job_json['job_info']['job_payload']['payload_task_id'],
+                'status': 'job-queued',
+                'job': job_json
+            }
             log_job_status(job_status_json)
 
             # submit job
@@ -151,8 +161,10 @@ def resubmit_jobs():
 
 
 if __name__ == "__main__":
-    input_type = sys.argv[1]
+    ctx = read_context()
+
+    input_type = ctx['type']
     if input_type != "worker":
-        resubmit_jobs()
+        resubmit_jobs(ctx)
     else:
         print("Cannot retry a worker.")
