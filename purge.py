@@ -32,7 +32,7 @@ def purge_products(query, component, operation):
         es_url = app.conf["GRQ_ES_URL"]
         es_index = app.conf["DATASET_ALIAS"]
 
-    es = ElasticsearchUtility(es_url)
+    es = ElasticsearchUtility(es_url, logger=logger)
 
     results = es.query(es_index, query)  # Querying for products
 
@@ -58,6 +58,7 @@ def purge_products(query, component, operation):
 
     else:
         purge = True if operation == 'purge' else False  # purge job from index
+        logger.info("")
 
         for result in results:
             uuid = result["_source"]['uuid']
@@ -89,7 +90,7 @@ def purge_products(query, component, operation):
             logger.info('Removing document from index %s for %s', index, payload_id)
             es.delete_by_id(index, payload_id)
             logger.info('Removed %s from index: %s', payload_id, index)
-        logger.info('Finished purging')
+        logger.info('Finished.')
 
 
 if __name__ == "__main__":
@@ -100,6 +101,9 @@ if __name__ == "__main__":
     operation_val = context['operation']
 
     query_obj = context['query']
-    query_obj = json.loads(query_obj)
+    try:
+        query_obj = json.loads(query_obj)
+    except TypeError as e:
+        logger.warning(e)
 
     purge_products(query_obj, component_val, operation_val)
