@@ -13,7 +13,7 @@ from hysds.log_utils import log_job_status
 from hysds_commons.elasticsearch_utils import ElasticsearchUtility
 
 JOBS_ES_URL = app.conf["JOBS_ES_URL"]
-JOB_STATUS_ALIAS = app.conf["STATUS_ALIAS"]
+STATUS_ALIAS = app.conf["STATUS_ALIAS"]
 es = ElasticsearchUtility(JOBS_ES_URL)
 
 
@@ -33,7 +33,7 @@ def query_es(job_id):
             }
         }
     }
-    doc = es.search(JOB_STATUS_ALIAS, query_json)
+    doc = es.search(STATUS_ALIAS, query_json)
     if doc['hits']['total']['value'] == 0:
         raise LookupError('job id %s not found in Elasticsearch' % job_id)
     return doc
@@ -84,8 +84,13 @@ def resubmit_jobs(context):
         try:
             # get job json for ES
             rand_sleep()
+
             doc = query_es(job_id)
-            job_json = doc["hits"]["hits"][0]["_source"]["job"]
+            doc = doc["hits"]["hits"][0]
+
+            job_json = doc["_source"]["job"]
+            index = doc["_index"]
+            _id = doc["_id"]
 
             # don't retry a retry
             if job_json['type'].startswith('job-lw-mozart-retry'):
@@ -135,7 +140,7 @@ def resubmit_jobs(context):
 
             # delete old job status
             rand_sleep()
-            es.delete_by_id(JOB_STATUS_ALIAS, job_id)
+            es.delete_by_id(index, _id)
 
             # log queued status
             rand_sleep()

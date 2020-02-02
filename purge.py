@@ -23,7 +23,8 @@ def purge_products(query, component, operation):
     :param component: tosca || figaro
     :param operation: purge or something else
     """
-    logger.debug("Doing %s for %s with query: %s", operation, component, query)
+    logger.debug("action: %s for %s", operation, component)
+    logger.debug("query: %s" % json.dumps(query, indent=2))
 
     if component == "mozart" or component == "figaro":
         es_url = app.conf["JOBS_ES_URL"]
@@ -58,7 +59,6 @@ def purge_products(query, component, operation):
 
     else:
         purge = True if operation == 'purge' else False  # purge job from index
-        logger.info("")
 
         for result in results:
             uuid = result["_source"]['uuid']
@@ -68,7 +68,7 @@ def purge_products(query, component, operation):
             # Always grab latest state (not state from query result)
             task = app.AsyncResult(uuid)
             state = task.state  # Active states may only revoke
-            logger.info("Job state: %s\n", state)
+            logger.info("\nJob state: %s\n", state)
 
             if state in ["RETRY", "STARTED"] or (state == "PENDING" and not purge):
                 if not purge:
