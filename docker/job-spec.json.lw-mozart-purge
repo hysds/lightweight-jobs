@@ -7,15 +7,15 @@
   "params" : [
     {
       "name": "query",
-      "destination": "positional"
+      "destination": "context"
     },
     {
       "name": "component",
-      "destination": "positional"
+      "destination": "context"
     },
     {
       "name": "operation",
-      "destination": "positional"
+      "destination": "context"
     }
    ]
 }
