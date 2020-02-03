@@ -6,7 +6,8 @@ LABEL description="Lightweight System Jobs"
 # provision lightweight-jobs PGE
 USER ops
 COPY . /home/ops/verdi/ops/lightweight-jobs
-RUN mv /home/ops/lightweight-jobs /home/ops/verdi/ops/
+RUN mv /home/ops/lightweight-jobs /home/ops/verdi/ops/ \
+    & pip install 'elasticsearch>=7.0.0,<8.0.0'
 
 # set entrypoint
 ENTRYPOINT ["/entrypoint-pge-with-stats.sh"]
