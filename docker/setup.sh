@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-git clone https://github.com/hysds/hysds_commons.git
+git clone --branch HC-158_lightweight-jobs https://github.com/hysds/hysds_commons.git
