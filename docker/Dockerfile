@@ -4,8 +4,9 @@ MAINTAINER malarout "Namrata.Malarout@jpl.nasa.gov"
 LABEL description="Lightweight System Jobs"
 
 # provision lightweight-jobs PGE
-USER ops
 COPY . /home/ops/lightweight-jobs
+
+USER ops
 RUN mv /home/ops/lightweight-jobs/hysds_commons /home/ops/verdi/ops/
 RUN ~/verdi/bin/pip install 'elasticsearch>=7.0.0,<8.0.0'
 
