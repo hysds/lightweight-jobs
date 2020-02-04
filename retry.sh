@@ -4,13 +4,6 @@ source ~/.bash_profile
 
 BASE_PATH=$(dirname "${BASH_SOURCE}")
 
-if [ "$#" -eq 1 ]; then
-  types=$1
-else
-  echo "Invalid number or arguments ($#) $*" 1>&2
-  exit 1
-fi
-
 # retry job
 echo "##########################################" 1>&2
 echo -n "Retrying job: " 1>&2
