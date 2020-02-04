@@ -22,4 +22,4 @@ ENTRYPOINT ["/entrypoint-pge-with-stats.sh"]
 
 WORKDIR /home/ops
 RUN source ~/.bash_profile
-CMD ["/bin/bash", "--login"]
+#CMD ["/bin/bash", "--login"]
