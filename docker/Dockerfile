@@ -13,7 +13,7 @@ RUN unlink /home/ops/verdi/ops/hysds_commons
 RUN sudo mv /home/ops/verdi/ops/hysds_commons-0.2.4 /home/ops/verdi/ops/hysds_commons-0.2.4.orig
 RUN ln -s /home/ops/verdi/ops/hysds_commons /home/ops/verdi/ops/hysds_commons-0.2.4
 
-RUN mv /home/ops/lightweight-jobs/hysds_commons /home/ops/verdi/ops/
+RUN sudo mv /home/ops/lightweight-jobs/hysds_commons /home/ops/verdi/ops/
 
 RUN ~/verdi/bin/pip install 'elasticsearch>=7.0.0,<8.0.0'
 
@@ -22,3 +22,4 @@ ENTRYPOINT ["/entrypoint-pge-with-stats.sh"]
 
 WORKDIR /home/ops
 CMD ["/bin/bash", "--login"]
+CMD [".", "~/.bash_profile"]
