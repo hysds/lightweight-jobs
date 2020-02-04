@@ -21,6 +21,5 @@ RUN ~/verdi/bin/pip install 'elasticsearch>=7.0.0,<8.0.0'
 ENTRYPOINT ["/entrypoint-pge-with-stats.sh"]
 
 WORKDIR /home/ops
-RUN echo "source ~/.bash_profile" >> ~/.bashrc
 
 CMD ["/bin/bash", "--login"]
