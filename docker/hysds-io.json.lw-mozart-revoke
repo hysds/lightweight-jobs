@@ -1,8 +1,8 @@
 {
-  "label":"_Revoke / _Stop Job",
-  "component":"figaro",
-  "submission_type":"individual",
-  "params" : [
+  "label": "_Revoke / _Stop Job",
+  "component": "figaro",
+  "submission_type": "individual",
+  "params": [
     {
       "name": "query",
       "type": "text",

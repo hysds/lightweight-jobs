@@ -7,23 +7,23 @@
   "params" : [
     {
       "name": "id",
-      "destination": "positional"
+      "destination": "context"
     },
     {
       "name": "url",
-      "destination": "positional"
+      "destination": "context"
     },
     {
       "name": "emails",
-      "destination": "positional"
+      "destination": "context"
     },
     {
       "name": "name",
-      "destination": "positional"
+      "destination": "context"
     },
     {
       "name": "component",
-      "destination": "positional"
+      "destination": "context"
     }
 	]
 }

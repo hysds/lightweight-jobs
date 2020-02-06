@@ -1,54 +1,51 @@
 #!/bin/env python
 import json
 import logging
-import sys
-import hysds_commons.request_utils
-import hysds_commons.metadata_rest_utils
 import osaka.main
 from hysds.celery import app
+from hysds_commons.elasticsearch_utils import ElasticsearchUtility
 
-# TODO: Setup logger for this job here.  Should log to STDOUT or STDERR as this is a job
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger("hysds")
+LOG_FILE_NAME = 'purge.log'
+logging.basicConfig(filename=LOG_FILE_NAME, filemode='a', level=logging.DEBUG)
+logger = logging
+
+
+def read_context():
+    with open('_context.json', 'r') as f:
+        cxt = json.load(f)
+        return cxt
 
 
 def purge_products(query, component, operation):
-    '''
+    """
     Iterator used to iterate across a query result and submit jobs for every hit
-    @param es_url - ElasticSearch URL to hit with query
-    @param es_index - Index in ElasticSearch to hit with query (usually an alias)
-    @param username - name of the user owning this submission
-    @param query - query to post to ElasticSearch and whose result will be iterated, JSON sting enc
-    @param kwargs - key-word args to match to HySDS IO
-    '''
-    logger.debug("Doing %s for %s with query: %s", operation, component, query)
+    :param query: query to post to ElasticSearch and whose result will be iterated, JSON sting enc
+    :param component: tosca || figaro
+    :param operation: purge or something else
+    """
+    logger.debug("action: %s for %s", operation, component)
+    logger.debug("query: %s" % json.dumps(query, indent=2))
 
     if component == "mozart" or component == "figaro":
         es_url = app.conf["JOBS_ES_URL"]
         es_index = app.conf["STATUS_ALIAS"]
-        facetview_url = app.conf["MOZART_URL"]
-    elif component == "tosca":
+    else:  # "tosca"
         es_url = app.conf["GRQ_ES_URL"]
         es_index = app.conf["DATASET_ALIAS"]
-        facetview_url = app.conf["GRQ_URL"]
 
-    # Querying for products
-    start_url = "{0}/{1}/_search".format(es_url, es_index)
-    scroll_url = "{0}/_search".format(es_url, es_index)
+    es = ElasticsearchUtility(es_url, logger=logger)
 
-    results = hysds_commons.request_utils.post_scrolled_json_responses(
-        start_url, scroll_url, generator=True, data=json.dumps(query), logger=logger)
-    # print results
+    results = es.query(es_index, query)  # Querying for products
 
     if component == 'tosca':
         for result in results:
-            es_type = result["_type"]
             ident = result["_id"]
             index = result["_index"]
+
             # find the Best URL first
             best = None
             for url in result["_source"]["urls"]:
-                if best is None or not url.startswith("http"):
+                if not url.startswith("http"):
                     best = url
 
             # making osaka call to delete product
@@ -57,26 +54,22 @@ def purge_products(query, component, operation):
                 osaka.main.rmall(best)
 
             # removing the metadata
-            hysds_commons.metadata_rest_utils.remove_metadata(
-                es_url, index, es_type, ident, logger)
+            es.delete_by_id(index, ident)
+            logger.info('Purged %s' % ident)
 
     else:
-        if operation == 'purge':
-            purge = True
-        else:
-            purge = False
-        # purge job from index
+        purge = True if operation == 'purge' else False  # purge job from index
 
         for result in results:
             uuid = result["_source"]['uuid']
             payload_id = result["_source"]['payload_id']
             index = result["_index"]
-            es_type = result['_type']
+
             # Always grab latest state (not state from query result)
             task = app.AsyncResult(uuid)
-            state = task.state
-            # Active states may only revoke
-            logger.info("Job state: %s\n", state)
+            state = task.state  # Active states may only revoke
+            logger.info("\nJob state: %s\n", state)
+
             if state in ["RETRY", "STARTED"] or (state == "PENDING" and not purge):
                 if not purge:
                     logger.info('Revoking %s\n', uuid)
@@ -87,36 +80,30 @@ def purge_products(query, component, operation):
             elif not purge:
                 logger.info('Cannot stop inactive job: %s\n', uuid)
                 continue
-            # Saftey net to revoke job if in PENDING state
+
+            # Safety net to revoke job if in PENDING state
             if state == "PENDING":
                 logger.info('Revoking %s\n', uuid)
                 app.control.revoke(uuid, terminate=True)
 
             # Both associated task and job from ES
-            logger.info('Removing ES for %s:%s', es_type, payload_id)
-            r = hysds_commons.metadata_rest_utils.remove_metadata(
-                es_url, index, es_type, payload_id, logger)
-            # r.raise_for_status() #not req
-            # res = r.json() #not req
-            logger.info('done.\n')
-        logger.info('Finished\n')
+            logger.info('Removing document from index %s for %s', index, payload_id)
+            es.delete_by_id(index, payload_id)
+            logger.info('Removed %s from index: %s', payload_id, index)
+        logger.info('Finished.')
 
 
 if __name__ == "__main__":
-    '''
-    Main program of purge_products
-    '''
-    # encoding to a JSON object
-    #decoded_string = sys.argv[1].decode('string_escape')
-    #dec = decoded_string.replace('u""','"')
-    #decoded_inp = dec.replace('""','"')
-    decoded_inp = sys.argv[1]
-    print(decoded_inp)
-    if decoded_inp.startswith('{"query"') or decoded_inp.startswith("{u'query'") or decoded_inp.startswith("{'query'"):
-        query_obj = json.loads(decoded_inp)
-    else:
-        query_obj["query"] = json.loads(decoded_inp)
+    """Main program of purge_products"""
+    context = read_context()  # reading the context file
 
-    component = sys.argv[2]
-    operation = sys.argv[3]
-    purge_products(query_obj, component, operation)
+    component_val = context['component']
+    operation_val = context['operation']
+
+    query_obj = context['query']
+    try:
+        query_obj = json.loads(query_obj)
+    except TypeError as e:
+        logger.warning(e)
+
+    purge_products(query_obj, component_val, operation_val)
