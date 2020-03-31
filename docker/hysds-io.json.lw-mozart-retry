@@ -1,9 +1,9 @@
 {
-  "label":"Retry Jobs/Tasks",
-  "component":"figaro",
-  "submission_type":"individual",
+  "label": "Retry Jobs/Tasks",
+  "component": "figaro",
+  "submission_type": "individual",
   "enable_dedup": false,
-  "params" : [
+  "params": [
     {
       "name": "retry_job_id",
       "type": "text",
@@ -25,7 +25,11 @@
       "name": "job_priority_increment",
       "type": "enum",
       "from": "submitter",
-      "enumerables": ["-1","0","+1"],
+      "enumerables": [
+        "-1",
+        "0",
+        "+1"
+      ],
       "default": "0",
       "lambda": "lambda x: int(x)"
     }

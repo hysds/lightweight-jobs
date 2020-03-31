@@ -1,22 +1,23 @@
 {
-  "required_queues":["system-jobs-queue"],
-  "command":"/home/ops/verdi/ops/lightweight-jobs/purge.sh",
-  "disk_usage":"3GB",
+  "required_queues": [
+    "system-jobs-queue"
+  ],
+  "command": "python /home/ops/lightweight-jobs/purge.py",
+  "disk_usage": "3GB",
   "soft_time_limit": 86400,
   "time_limit": 86700,
-  "params" : [
+  "params": [
     {
       "name": "query",
-      "destination": "positional"
+      "destination": "context"
     },
     {
       "name": "component",
-      "destination": "positional"
+      "destination": "context"
     },
     {
       "name": "operation",
-      "destination": "positional"
+      "destination": "context"
     }
-   ]
+  ]
 }
-

@@ -1,9 +1,9 @@
 {
-  "label":"Reprioritize Jobs/Tasks",
-  "component":"figaro",
-  "submission_type":"individual",
+  "label": "Reprioritize Jobs/Tasks",
+  "component": "figaro",
+  "submission_type": "individual",
   "enable_dedup": false,
-  "params" : [
+  "params": [
     {
       "name": "retry_job_id",
       "type": "text",
@@ -23,8 +23,8 @@
     },
     {
       "name": "new_job_priority",
-      "from": "submitter",
       "type": "text",
+      "from": "submitter",
       "default": "0",
       "lambda": "lambda x: int(x)"
     }
