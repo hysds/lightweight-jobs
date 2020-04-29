@@ -92,7 +92,7 @@ def resubmit_jobs(context):
             doc = doc["hits"]["hits"][0]
 
             job_json = doc["_source"]["job"]
-            task_id = result["_source"]["uuid"]
+            task_id = doc["_source"]["uuid"]
             index = doc["_index"]
             _id = doc["_id"]
 
