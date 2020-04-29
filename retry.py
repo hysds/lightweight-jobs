@@ -12,6 +12,9 @@ from hysds.orchestrator import run_job
 from hysds.log_utils import log_job_status
 from hysds_commons.elasticsearch_utils import ElasticsearchUtility
 
+from utils import revoke
+
+
 JOBS_ES_URL = app.conf["JOBS_ES_URL"]
 STATUS_ALIAS = app.conf["STATUS_ALIAS"]
 es = ElasticsearchUtility(JOBS_ES_URL)
@@ -89,6 +92,7 @@ def resubmit_jobs(context):
             doc = doc["hits"]["hits"][0]
 
             job_json = doc["_source"]["job"]
+            task_id = result["_source"]["uuid"]
             index = doc["_index"]
             _id = doc["_id"]
 
@@ -126,17 +130,22 @@ def resubmit_jobs(context):
             # revoke original job
             rand_sleep()
 
+            # get state
+            task = app.AsyncResult(task_id)
+            state = task.state
+
+            # revoke
             job_id = job_json['job_id']
             try:
-                app.control.revoke(job_id, terminate=True)
-                print("revoked original job: %s" % job_id)
+                revoke(task_id, state)
+                print("revoked original job: %s (%s)" % (job_id, task_id))
             except:
-                print("Got error issuing revoke on job %s: %s" % (job_id, traceback.format_exc()))
+                print("Got error issuing revoke on job %s (%s): %s" % (job_id, task_id, traceback.format_exc()))
                 print("Continuing.")
 
             # generate celery task id
-            task_id = uuid()
-            job_json['task_id'] = task_id
+            new_task_id = uuid()
+            job_json['task_id'] = new_task_id
 
             # delete old job status
             rand_sleep()
@@ -145,7 +154,7 @@ def resubmit_jobs(context):
             # log queued status
             rand_sleep()
             job_status_json = {
-                'uuid': task_id,
+                'uuid': new_task_id,
                 'job_id': job_id,
                 'payload_id': job_json['job_info']['job_payload']['payload_task_id'],
                 'status': 'job-queued',
@@ -159,7 +168,7 @@ def resubmit_jobs(context):
                                 time_limit=job_json['job_info']['time_limit'],
                                 soft_time_limit=job_json['job_info']['soft_time_limit'],
                                 priority=job_json['priority'],
-                                task_id=task_id)
+                                task_id=new_task_id)
         except Exception as ex:
             print("[ERROR] Exception occurred {0}:{1} {2}".format(type(ex), ex, traceback.format_exc()),
                   file=sys.stderr)
