@@ -25,11 +25,15 @@ def set_redis_revoked_task_pool():
 def revoke(task_id, state):
     """Revoke task."""
 
-    # revoke task
-    app.control.revoke(task_id, terminate=True)
+    # set redis pool
+    set_redis_revoked_task_pool()
+    global REVOKED_TASK_POOL
 
-    # record revoke
+    # record revoked task
     r = StrictRedis(connection_pool=REVOKED_TASK_POOL)
     r.setex(REVOKED_TASK_TMPL % task_id,
             app.conf.HYSDS_JOB_STATUS_EXPIRES,
             state)
+
+    # revoke task
+    app.control.revoke(task_id, terminate=True)
