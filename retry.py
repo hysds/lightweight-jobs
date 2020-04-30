@@ -2,20 +2,29 @@
 import sys
 import json
 import requests
-import time
 import traceback
-from random import randint, uniform
+import backoff
 from datetime import datetime
 from celery import uuid
 from hysds.celery import app
 from hysds.orchestrator import run_job
 from hysds.log_utils import log_job_status
 
+from utils import revoke
 
+
+JOBS_ES_URL = app.conf["JOBS_ES_URL"]
+STATUS_ALIAS = app.conf['STATUS_ALIAS']
+
+
+@backoff.on_exception(backoff.expo,
+                      Exception,
+                      max_tries=10,
+                      max_value=64)
 def query_ES(job_id):
     # get the ES_URL
-    es_url = app.conf["JOBS_ES_URL"]
-    index = app.conf["STATUS_ALIAS"]
+    es_url = JOBS_ES_URL
+    index = STATUS_ALIAS
     query_json = {
         "query": {"bool": {"must": [{"term": {"job.job_info.id": "job_id"}}]}}}
     query_json["query"]["bool"]["must"][0]["term"]["job.job_info.id"] = job_id
@@ -24,8 +33,15 @@ def query_ES(job_id):
     return r
 
 
-def rand_sleep(sleep_min=0.1, sleep_max=1): time.sleep(
-    uniform(sleep_min, sleep_max))
+@backoff.on_exception(backoff.expo,
+                      Exception,
+                      max_tries=10,
+                      max_value=64)
+def delete_by_id(es_url, query_idx, job_id):
+    r = requests.delete("%s/%s/job/_query?q=_id:%s" %
+                        (es_url, query_idx, job_id))
+    r.raise_for_status()
+    print("deleted original job status: %s" % job_id)
 
 
 def get_new_job_priority(old_priority, increment_by, new_priority):
@@ -41,11 +57,7 @@ def get_new_job_priority(old_priority, increment_by, new_priority):
 
 
 def resubmit_jobs():
-    es_url = app.conf["JOBS_ES_URL"]
-    # random sleep to prevent from getting ElasticSearch errors:
-    # 429 Client Error: Too Many Requests
-    time.sleep(randint(1, 5))
-    # can call submit_job
+    es_url = JOBS_ES_URL
 
     # iterate through job ids and query to get the job json
     with open('_context.json') as f:
@@ -65,14 +77,19 @@ def resubmit_jobs():
         print(("Retrying job: {}".format(job_id)))
         try:
             # get job json for ES
-            rand_sleep()
             response = query_ES(job_id)
             if response.status_code != 200:
                 print(("Failed to query ES. Got status code %d:\n%s" % (response.status_code, json.dumps(response.json(),
                                                                                                          indent=2))))
             response.raise_for_status()
-            resp_json = response.json()
-            job_json = resp_json["hits"]["hits"][0]["_source"]["job"]
+            doc = response.json()
+            if doc['hits']['total']['value'] == 0:
+                print('job id %s not found in Elasticsearch. Continuing.' % job_id)
+                continue
+            doc = doc["hits"]["hits"][0]
+            job_json = doc["_source"]["job"]
+            task_id = doc["_source"]["uuid"]
+            query_idx = doc["_index"]
 
             # don't retry a retry
             if job_json['type'].startswith('job-lw-mozart-retry'):
@@ -106,34 +123,28 @@ def resubmit_jobs():
             job_json['priority'] = get_new_job_priority(old_priority=old_priority, increment_by=increment_by,
                                                         new_priority=new_priority)
 
+            # get state
+            task = app.AsyncResult(task_id)
+            state = task.state
+
             # revoke original job
-            rand_sleep()
+            job_id = job_json['job_id']
             try:
-                app.control.revoke(job_json['job_id'], terminate=True)
-                print("revoked original job: %s" % job_json['job_id'])
-            except Exception as e:
-                print("Got error issuing revoke on job %s: %s" %
-                      (job_json['job_id'], traceback.format_exc()))
+                revoke(task_id, state)
+                print("revoked original job: %s (%s)" % (job_id, task_id))
+            except Exception:
+                print("Got error issuing revoke on job %s (%s): %s" % (job_id, task_id, traceback.format_exc()))
                 print("Continuing.")
 
             # generate celery task id
-            job_json['task_id'] = uuid()
+            new_task_id = uuid()
+            job_json['task_id'] = new_task_id
 
             # delete old job status
-            rand_sleep()
-            try:
-                r = requests.delete("%s/%s/job/_query?q=_id:%s" %
-                                    (es_url, query_idx, job_json['job_id']))
-                r.raise_for_status()
-                print("deleted original job status: %s" % job_json['job_id'])
-            except Exception as e:
-                print("Got error deleting job status %s: %s" %
-                      (job_json['job_id'], traceback.format_exc()))
-                print("Continuing.")
+            delete_by_id(es_url, query_idx, job_json['job_id'])
 
             # log queued status
-            rand_sleep()
-            job_status_json = {'uuid': job_json['task_id'],
+            job_status_json = {'uuid': new_task_id,
                                'job_id': job_json['job_id'],
                                'payload_id': job_json['job_info']['job_payload']['payload_task_id'],
                                'status': 'job-queued',
@@ -146,14 +157,13 @@ def resubmit_jobs():
                                       time_limit=job_json['job_info']['time_limit'],
                                       soft_time_limit=job_json['job_info']['soft_time_limit'],
                                       priority=job_json['priority'],
-                                      task_id=job_json['task_id'])
+                                      task_id=new_task_id)
         except Exception as ex:
             print("[ERROR] Exception occured {0}:{1} {2}".format(
                 type(ex), ex, traceback.format_exc()), file=sys.stderr)
 
 
 if __name__ == "__main__":
-    query_idx = app.conf['STATUS_ALIAS']
     input_type = sys.argv[1]
     if input_type != "worker":
         resubmit_jobs()
