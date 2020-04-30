@@ -7,6 +7,9 @@ import hysds_commons.metadata_rest_utils
 import osaka.main
 from hysds.celery import app
 
+from utils import revoke
+
+
 # TODO: Setup logger for this job here.  Should log to STDOUT or STDERR as this is a job
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("hysds")
@@ -80,7 +83,7 @@ def purge_products(query, component, operation):
             if state in ["RETRY", "STARTED"] or (state == "PENDING" and not purge):
                 if not purge:
                     logger.info('Revoking %s\n', uuid)
-                    app.control.revoke(uuid, terminate=True)
+                    revoke(uuid, state)
                 else:
                     logger.info('Cannot remove active job %s\n', uuid)
                 continue
@@ -90,7 +93,7 @@ def purge_products(query, component, operation):
             # Saftey net to revoke job if in PENDING state
             if state == "PENDING":
                 logger.info('Revoking %s\n', uuid)
-                app.control.revoke(uuid, terminate=True)
+                revoke(uuid, state)
 
             # Both associated task and job from ES
             logger.info('Removing ES for %s:%s', es_type, payload_id)
