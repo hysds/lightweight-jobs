@@ -83,7 +83,7 @@ def resubmit_jobs():
                                                                                                          indent=2))))
             response.raise_for_status()
             doc = response.json()
-            if doc['hits']['total']['value'] == 0:
+            if doc['hits']['total'] == 0:
                 print('job id %s not found in Elasticsearch. Continuing.' % job_id)
                 continue
             doc = doc["hits"]["hits"][0]
