@@ -5,6 +5,9 @@ import osaka.main
 from hysds.celery import app
 from hysds_commons.elasticsearch_utils import ElasticsearchUtility
 
+from utils import revoke
+
+
 LOG_FILE_NAME = 'purge.log'
 logging.basicConfig(filename=LOG_FILE_NAME, filemode='a', level=logging.DEBUG)
 logger = logging
@@ -73,7 +76,7 @@ def purge_products(query, component, operation):
             if state in ["RETRY", "STARTED"] or (state == "PENDING" and not purge):
                 if not purge:
                     logger.info('Revoking %s\n', uuid)
-                    app.control.revoke(uuid, terminate=True)
+                    revoke(uuid, state)
                 else:
                     logger.info('Cannot remove active job %s\n', uuid)
                 continue
@@ -84,7 +87,7 @@ def purge_products(query, component, operation):
             # Safety net to revoke job if in PENDING state
             if state == "PENDING":
                 logger.info('Revoking %s\n', uuid)
-                app.control.revoke(uuid, terminate=True)
+                revoke(uuid, state)
 
             # Both associated task and job from ES
             logger.info('Removing document from index %s for %s', index, payload_id)

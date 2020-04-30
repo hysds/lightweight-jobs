@@ -3,6 +3,7 @@ import sys
 import json
 import time
 import traceback
+import backoff
 from random import randint, uniform
 from datetime import datetime
 from celery import uuid
@@ -11,6 +12,9 @@ from hysds.celery import app
 from hysds.orchestrator import run_job
 from hysds.log_utils import log_job_status
 from hysds_commons.elasticsearch_utils import ElasticsearchUtility
+
+from utils import revoke
+
 
 JOBS_ES_URL = app.conf["JOBS_ES_URL"]
 STATUS_ALIAS = app.conf["STATUS_ALIAS"]
@@ -23,6 +27,10 @@ def read_context():
         return cxt
 
 
+@backoff.on_exception(backoff.expo,
+                      Exception,
+                      max_tries=10,
+                      max_value=64)
 def query_es(job_id):
     query_json = {
         "query": {
@@ -33,14 +41,15 @@ def query_es(job_id):
             }
         }
     }
-    doc = es.search(STATUS_ALIAS, query_json)
-    if doc['hits']['total']['value'] == 0:
-        raise LookupError('job id %s not found in Elasticsearch' % job_id)
-    return doc
+    return es.search(STATUS_ALIAS, query_json)
 
 
-def rand_sleep(sleep_min=0.1, sleep_max=1): time.sleep(
-    uniform(sleep_min, sleep_max))
+@backoff.on_exception(backoff.expo,
+                      Exception,
+                      max_tries=10,
+                      max_value=64)
+def delete_by_id(index, id):
+            es.delete_by_id(index, id)
 
 
 def get_new_job_priority(old_priority, increment_by, new_priority):
@@ -60,9 +69,6 @@ def resubmit_jobs(context):
     logic to resubmit the job
     :param context: contents from _context.json
     """
-    # random sleep to prevent from getting ElasticSearch errors:
-    # 429 Client Error: Too Many Requests
-    time.sleep(randint(1, 5))
 
     # iterate through job ids and query to get the job json
     increment_by = None
@@ -82,13 +88,14 @@ def resubmit_jobs(context):
     for job_id in retry_job_ids:
         print(("Validating retry job: {}".format(job_id)))
         try:
-            # get job json for ES
-            rand_sleep()
-
             doc = query_es(job_id)
+            if doc['hits']['total']['value'] == 0:
+                print('job id %s not found in Elasticsearch. Continuing.' % job_id)
+                continue
             doc = doc["hits"]["hits"][0]
 
             job_json = doc["_source"]["job"]
+            task_id = doc["_source"]["uuid"]
             index = doc["_index"]
             _id = doc["_id"]
 
@@ -123,29 +130,29 @@ def resubmit_jobs(context):
             job_json['priority'] = get_new_job_priority(old_priority=old_priority, increment_by=increment_by,
                                                         new_priority=new_priority)
 
-            # revoke original job
-            rand_sleep()
+            # get state
+            task = app.AsyncResult(task_id)
+            state = task.state
 
+            # revoke
             job_id = job_json['job_id']
             try:
-                app.control.revoke(job_id, terminate=True)
-                print("revoked original job: %s" % job_id)
+                revoke(task_id, state)
+                print("revoked original job: %s (%s)" % (job_id, task_id))
             except:
-                print("Got error issuing revoke on job %s: %s" % (job_id, traceback.format_exc()))
+                print("Got error issuing revoke on job %s (%s): %s" % (job_id, task_id, traceback.format_exc()))
                 print("Continuing.")
 
             # generate celery task id
-            task_id = uuid()
-            job_json['task_id'] = task_id
+            new_task_id = uuid()
+            job_json['task_id'] = new_task_id
 
             # delete old job status
-            rand_sleep()
-            es.delete_by_id(index, _id)
+            delete_by_id(index, _id)
 
             # log queued status
-            rand_sleep()
             job_status_json = {
-                'uuid': task_id,
+                'uuid': new_task_id,
                 'job_id': job_id,
                 'payload_id': job_json['job_info']['job_payload']['payload_task_id'],
                 'status': 'job-queued',
@@ -159,7 +166,7 @@ def resubmit_jobs(context):
                                 time_limit=job_json['job_info']['time_limit'],
                                 soft_time_limit=job_json['job_info']['soft_time_limit'],
                                 priority=job_json['priority'],
-                                task_id=task_id)
+                                task_id=new_task_id)
         except Exception as ex:
             print("[ERROR] Exception occurred {0}:{1} {2}".format(type(ex), ex, traceback.format_exc()),
                   file=sys.stderr)
