@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 import os
-import sys
 import getpass
 import requests
 import json
-import types
 import base64
 import socket
+
 from smtplib import SMTP
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
@@ -16,8 +15,8 @@ from email.Utils import parseaddr, formataddr, COMMASPACE, formatdate
 from email import Encoders
 
 from hysds.celery import app
+from hysds.es_util import get_mozart_es, get_grq_es
 from hysds_commons.net_utils import get_container_host_ip
-from hysds_commons.elasticsearch_utils import ElasticsearchUtility
 
 
 def read_context():
@@ -123,30 +122,6 @@ def send_email(sender, cc, bcc, subject, body, attachments=None):
     smtp.quit()
 
 
-def get_source(es_host, idx, _id):
-    """Return source metadata for object_id."""
-    es = ElasticsearchUtility(es_host)
-    query = {
-        "sort": {
-            "_timestamp": {
-                "order": "desc"
-            }
-        },
-        "query": {
-            "term": {
-                "_id": _id
-            }
-        }
-    }
-    print('get_source debug %s from index: %s' % (_id, idx))
-    print('query: %s' % json.dumps(query, indent=2))
-    result = es.search(idx, query)
-    if result['hits']['total']['value'] == 0:
-        return None
-    else:
-        return result['hits']['hits'][0]['_source']
-
-
 def get_cities(src):
     """Return list of cities."""
 
@@ -232,11 +207,11 @@ if __name__ == "__main__":
     component = context['component']
 
     if component == "mozart" or component == "figaro":
-        es_url = app.conf["JOBS_ES_URL"]
+        es = get_mozart_es()
         index = app.conf["STATUS_ALIAS"]
         facetview_url = app.conf["MOZART_URL"]
     else:  # "tosca"
-        es_url = app.conf["GRQ_ES_URL"]
+        es = get_grq_es()
         index = app.conf["DATASET_ALIAS"]
         facetview_url = "https://aria-search-beta.jpl.nasa.gov/search"  # TODO: why is it hard coded
 
@@ -246,8 +221,9 @@ if __name__ == "__main__":
     email_body = "Product with id %s was ingested." % object_id
     email_attachments = None
 
-    doc = get_source(es_url, index, object_id)
-    if doc is not None:
+    doc = es.get_by_id(index=index, id=object_id, ignore=404)
+
+    if doc['found'] is True:
         email_body += "\n\n%s" % get_metadata_snippet(doc, settings['SNIPPET_CFG'])
         email_body += "\n\nThe entire metadata json for this product has been attached for your convenience.\n\n"
         email_attachments = {
