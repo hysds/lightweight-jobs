@@ -1,24 +1,21 @@
 #!/usr/bin/env python
 import sys
 import json
-import time
 import traceback
 import backoff
-from random import randint, uniform
 from datetime import datetime
 from celery import uuid
 
 from hysds.celery import app
+from hysds.es_util import get_mozart_es
 from hysds.orchestrator import run_job
 from hysds.log_utils import log_job_status
-from hysds_commons.elasticsearch_utils import ElasticsearchUtility
 
 from utils import revoke
 
 
-JOBS_ES_URL = app.conf["JOBS_ES_URL"]
 STATUS_ALIAS = app.conf["STATUS_ALIAS"]
-es = ElasticsearchUtility(JOBS_ES_URL)
+mozart_es = get_mozart_es()
 
 
 def read_context():
@@ -27,10 +24,7 @@ def read_context():
         return cxt
 
 
-@backoff.on_exception(backoff.expo,
-                      Exception,
-                      max_tries=10,
-                      max_value=64)
+@backoff.on_exception(backoff.expo, Exception, max_tries=10, max_value=64)
 def query_es(job_id):
     query_json = {
         "query": {
@@ -41,15 +35,12 @@ def query_es(job_id):
             }
         }
     }
-    return es.search(STATUS_ALIAS, query_json)
+    return mozart_es.search(index=STATUS_ALIAS, body=query_json)
 
 
-@backoff.on_exception(backoff.expo,
-                      Exception,
-                      max_tries=10,
-                      max_value=64)
-def delete_by_id(index, id):
-            es.delete_by_id(index, id)
+@backoff.on_exception(backoff.expo, Exception, max_tries=10, max_value=64)
+def delete_by_id(index, _id):
+    mozart_es.delete_by_id(index=index, id=_id)
 
 
 def get_new_job_priority(old_priority, increment_by, new_priority):

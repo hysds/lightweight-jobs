@@ -1,10 +1,10 @@
 #!/bin/env python
 import json
 import logging
+
 import osaka.main
 from hysds.celery import app
-from hysds_commons.elasticsearch_utils import ElasticsearchUtility
-
+from hysds.es_util import get_mozart_es, get_grq_es
 from utils import revoke
 
 
@@ -30,15 +30,13 @@ def purge_products(query, component, operation):
     logger.debug("query: %s" % json.dumps(query, indent=2))
 
     if component == "mozart" or component == "figaro":
-        es_url = app.conf["JOBS_ES_URL"]
+        es = get_mozart_es()
         es_index = app.conf["STATUS_ALIAS"]
     else:  # "tosca"
-        es_url = app.conf["GRQ_ES_URL"]
+        es = get_grq_es()
         es_index = app.conf["DATASET_ALIAS"]
 
-    es = ElasticsearchUtility(es_url, logger=logger)
-
-    results = es.query(es_index, query)  # Querying for products
+    results = es.query(index=es_index, body=query)  # Querying for products
 
     if component == 'tosca':
         for result in results:
@@ -51,13 +49,11 @@ def purge_products(query, component, operation):
                 if not url.startswith("http"):
                     best = url
 
-            # making osaka call to delete product
-            print('paramater being passed to osaka.main.rmall: ', best)
+            print('paramater being passed to osaka.main.rmall: ', best)  # making osaka call to delete product
             if best is not None:
                 osaka.main.rmall(best)
 
-            # removing the metadata
-            es.delete_by_id(index, ident)
+            es.delete_by_id(index=index, id=ident, ignore=404)  # removing the metadata
             logger.info('Purged %s' % ident)
 
     else:
@@ -91,7 +87,7 @@ def purge_products(query, component, operation):
 
             # Both associated task and job from ES
             logger.info('Removing document from index %s for %s', index, payload_id)
-            es.delete_by_id(index, payload_id)
+            es.delete_by_id(index=index, id=payload_id, ignore=404)
             logger.info('Removed %s from index: %s', payload_id, index)
         logger.info('Finished.')
 
