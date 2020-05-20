@@ -207,7 +207,7 @@ if __name__ == "__main__":
     object_id = context["id"]
     url = context["url"]
     emails = context["emails"]
-    rule_name = context["rule_name"]
+    rule_name = context["name"]
     component = context["component"]
 
     if component == "mozart" or component == "figaro":
