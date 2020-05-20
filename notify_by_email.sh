@@ -4,25 +4,10 @@ source ~/.bash_profile
 
 BASE_PATH=$(dirname "${BASH_SOURCE}")
 
-# check args
-# if [ "$#" -eq 5 ]; then
-#   id=$1
-#   url=$2
-#   emails=$3
-#   rule_name=$4
-#   component=$5
-# else
-#   echo "Invalid number or arguments ($#) $*" 1>&2
-#   exit 1
-# fi
-
-
-
 # send email
 echo "##########################################" 1>&2
 echo -n "Sending email: " 1>&2
 date 1>&2
-# python $BASE_PATH/notify_by_email.py "$id" "$url" "$emails" "$rule_name" "$component" > notify_by_email.log 2>&1
 python $BASE_PATH/notify_by_email.py > notify_by_email.log 2>&1
 STATUS=$?
 
