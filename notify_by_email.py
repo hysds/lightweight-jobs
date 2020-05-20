@@ -12,7 +12,7 @@ from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email.header import Header
 from email.utils import parseaddr, formataddr, COMMASPACE
-from email import Encoders
+from email import encoders
 
 from hysds.celery import app
 from hysds.es_util import get_mozart_es, get_grq_es
@@ -119,7 +119,7 @@ def send_email(sender, cc, bcc, subject, body, attachments=None):
         for fname in attachments:
             part = MIMEBase("application", "octet-stream")
             part.set_payload(attachments[fname])
-            Encoders.encode_base64(part)
+            encoders.encode_base64(part)
             part.add_header("Content-Disposition", 'attachment; filename="%s"' % fname)
             msg.attach(part)
 
