@@ -197,8 +197,8 @@ def get_facetview_link(link, _id, version=None):
 
 
 if __name__ == "__main__":
-    cwd = os.getcwd()
-    settings_file = os.path.join(cwd, "settings.json")
+
+    settings_file = os.path.join(__file__, "settings.json")
     settings_file = os.path.normpath(settings_file)  # normalizing the path
     settings = json.load(open(settings_file))
 
