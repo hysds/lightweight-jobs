@@ -204,7 +204,7 @@ if __name__ == "__main__":
 
     context = read_context()
 
-    object_id = context["objectid"]
+    object_id = context["id"]
     url = context["url"]
     emails = context["emails"]
     rule_name = context["rule_name"]
