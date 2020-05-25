@@ -227,9 +227,17 @@ if __name__ == "__main__":
     email_body = "Product with id %s was ingested." % object_id
     email_attachments = None
 
-    doc = es.get_by_id(index=index, id=object_id, ignore=404)
+    query = {
+        "query": {
+            "term": {
+                "_id": object_id
+            }
+        }
+    }
+    result = es.search(index=index, body=query)  # can't use get_by_id on alias
 
-    if doc["found"] is True:
+    if result["hits"]["total"]["value"] > 0:
+        doc = result["hits"]["hits"][0]
         email_body += "\n\n%s" % get_metadata_snippet(doc, settings["SNIPPET_CFG"])
         email_body += "\n\nThe entire metadata json for this product has been attached for your convenience.\n\n"
         email_attachments = {
@@ -249,6 +257,7 @@ if __name__ == "__main__":
                         continue
                     email_attachments[small_img] = r.content
     else:
+        doc = None
         email_body += "\n\n"
 
     email_body += "You may access the product here:\n\n%s" % url
