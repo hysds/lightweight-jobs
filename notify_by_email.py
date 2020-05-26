@@ -277,6 +277,7 @@ if __name__ == "__main__":
     username_email = "%s@%s" % (getpass.getuser(), get_hostname())
     send_email(
         username_email,
+        cc_recipients,
         bcc_recipients,
         email_subject,
         email_body,
