@@ -86,6 +86,7 @@ def send_email(sender, cc, bcc, subject, body, attachments=None):
 
         # Make sure email addresses do not contain non-ASCII characters
         recipient_addr = recipient_addr.encode("ascii")
+        recipient_addr = recipient_addr.decode()
         unicode_parsed_cc.append((recipient_name, recipient_addr))
 
     unicode_parsed_bcc = []
@@ -94,6 +95,7 @@ def send_email(sender, cc, bcc, subject, body, attachments=None):
 
         # Make sure email addresses do not contain non-ASCII characters
         recipient_addr = recipient_addr.encode("ascii")
+        recipient_addr = recipient_addr.decode()
         unicode_parsed_bcc.append((recipient_name, recipient_addr))
 
     # Create the message ('plain' stands for Content-Type: text/plain)
