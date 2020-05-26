@@ -181,7 +181,7 @@ def get_facetview_link(link, _id, version=None):
     """
     if version is None:
         query = {"query": {"query_string": {"query": "_id:%s" % _id}}}
-        b64 = base64.urlsafe_b64encode(json.dumps(query).encode())
+        b64 = base64.urlsafe_b64encode(json.dumps(query).encode('ascii'))
     else:
         query = {
             "query": {
@@ -190,7 +190,7 @@ def get_facetview_link(link, _id, version=None):
                 }
             }
         }
-        b64 = base64.urlsafe_b64encode(json.dumps(query).encode())
+        b64 = base64.urlsafe_b64encode(json.dumps(query).encode('ascii'))
     if link.endswith("/"):
         link = link[:-1]
     return "%s/?base64=%s" % (link, b64)
