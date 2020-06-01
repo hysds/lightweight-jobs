@@ -247,11 +247,12 @@ if __name__ == "__main__":
         }
 
         # attach browse images
-        if len(doc["browse_urls"]) > 0:
-            browse_url = doc["browse_urls"][0]
-            if len(doc["images"]) > 0:
+        doc_source = doc["_source"]
+        if len(doc_source["browse_urls"]) > 0:
+            browse_url = doc_source["browse_urls"][0]
+            if len(doc_source["images"]) > 0:
                 email_body += "Browse images have been attached as well.\n\n"
-                for i in doc["images"]:
+                for i in doc_source["images"]:
                     small_img = i["small_img"]
                     small_img_url = os.path.join(browse_url, small_img)
                     r = requests.get(small_img_url)
