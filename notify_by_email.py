@@ -181,13 +181,20 @@ def get_facetview_link(link, _id, version=None):
     :param version: str
     :return: constructed URL for facetview
     """
-    if version is None:
-        query_string = 'query_string="_id%3A%5C"' + _id + '""'
-    else:
-        query_string = 'query_string="_id%3A%5C"' + _id + '""&system_version="' + version + '"'
     if link.endswith("/"):
         link = link[:-1]
-    return query_string
+    origin = link.split("/")[-1:]
+    print(origin)
+    if "figaro" in origin:
+        term = "job_id"
+    else:
+        term = "_id"
+    if version is None:
+        query_string = 'query_string="' + term + '%3A%5C"' + _id + '%5C""'
+    else:
+        query_string = 'query_string="' + term + '%3A%5C"' + _id + '%5C""&system_version="' + version + '"'
+    print(_id)
+    return "%s/?%s" % (link, query_string)
 
 
 if __name__ == "__main__":
@@ -208,12 +215,12 @@ if __name__ == "__main__":
         es = get_mozart_es()
         index = app.conf["STATUS_ALIAS"]
         facetview_url = app.conf["MOZART_URL"]
-        facetview_url = "/".join(facetview_url.split("/")[0:-1]) + "/figaro"
+        facetview_url = "/".join(facetview_url.split("/")[0:-2]) + "/hysds_ui/figaro"
     else:  # "tosca"
         es = get_grq_es()
         index = app.conf["DATASET_ALIAS"]
         facetview_url = app.conf["MOZART_URL"]
-        facetview_url = "/".join(facetview_url.split("/")[0:-1]) + "/tosca"
+        facetview_url = "/".join(facetview_url.split("/")[0:-2]) + "/hysds_ui/tosca"
 
     cc_recipients = [i.strip() for i in emails.split(",")]
     bcc_recipients = []
