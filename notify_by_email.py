@@ -182,20 +182,12 @@ def get_facetview_link(link, _id, version=None):
     :return: constructed URL for facetview
     """
     if version is None:
-        query = {"query": {"query_string": {"query": "_id:%s" % _id}}}
-        b64 = base64.urlsafe_b64encode(json.dumps(query).encode('ascii'))
+        query_string = 'query_string="_id%3A%5C"' + _id + '""'
     else:
-        query = {
-            "query": {
-                "query_string": {
-                    "query": "_id:%s AND system_versions:%s" % (_id, version)
-                }
-            }
-        }
-        b64 = base64.urlsafe_b64encode(json.dumps(query).encode('ascii'))
+        query_string = 'query_string="_id%3A%5C"' + _id + '""&system_version="' + version + '"'
     if link.endswith("/"):
         link = link[:-1]
-    return "%s/?base64=%s" % (link, b64)
+    return query_string
 
 
 if __name__ == "__main__":
@@ -216,12 +208,12 @@ if __name__ == "__main__":
         es = get_mozart_es()
         index = app.conf["STATUS_ALIAS"]
         facetview_url = app.conf["MOZART_URL"]
+        facetview_url = "/".join(facetview_url.split("/")[0:-1]) + "/figaro"
     else:  # "tosca"
         es = get_grq_es()
         index = app.conf["DATASET_ALIAS"]
-        facetview_url = (
-            "https://aria-search-beta.jpl.nasa.gov/search"  # TODO: why is it hard coded
-        )
+        facetview_url = app.conf["MOZART_URL"]
+        facetview_url = "/".join(facetview_url.split("/")[0:-1]) + "/tosca"
 
     cc_recipients = [i.strip() for i in emails.split(",")]
     bcc_recipients = []
