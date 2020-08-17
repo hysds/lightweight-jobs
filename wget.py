@@ -1,3 +1,4 @@
+from builtins import str
 import json
 import requests
 import types
