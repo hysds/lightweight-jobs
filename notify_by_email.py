@@ -14,7 +14,7 @@ from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email.header import Header
 from email.utils import parseaddr, formataddr, COMMASPACE, formatdate
-from email import Encoders
+from email import encoders
 from hysds.celery import app
 from hysds_commons.net_utils import get_container_host_ip
 
@@ -79,12 +79,14 @@ def send_email(sender, cc_recipients, bcc_recipients, subject, body, attachments
         recipient_name = str(Header(str(recipient_name), header_charset))
         # Make sure email addresses do not contain non-ASCII characters
         recipient_addr = recipient_addr.encode('ascii')
+        recipient_addr = recipient_addr.decode()
         unicode_parsed_cc_recipients.append((recipient_name, recipient_addr))
     unicode_parsed_bcc_recipients = []
     for recipient_name, recipient_addr in parsed_bcc_recipients:
         recipient_name = str(Header(str(recipient_name), header_charset))
         # Make sure email addresses do not contain non-ASCII characters
         recipient_addr = recipient_addr.encode('ascii')
+        recipient_addr = recipient_addr.decode()
         unicode_parsed_bcc_recipients.append((recipient_name, recipient_addr))
 
     # Make sure email addresses do not contain non-ASCII characters
@@ -192,11 +194,15 @@ def get_facetview_link(facetview_url, objectid, system_version=None):
     """Return link to objectid in FacetView interface."""
 
     if system_version is None:
-        b64 = base64.urlsafe_b64encode(
-            '{"query":{"query_string":{"query":"_id:%s"}}}' % objectid)
+        q = '{"query":{"query_string":{"query":"_id:%s"}}}' % objectid
+        b64 = q.encode('utf-8')
+        #b64 = base64.urlsafe_b64encode(
+        #    '{"query":{"query_string":{"query":"_id:%s"}}}' % objectid)
     else:
-        b64 = base64.urlsafe_b64encode(
-            '{"query":{"query_string":{"query":"_id:%s AND system_version:%s"}}}' % (objectid, system_version))
+        q = '{"query":{"query_string":{"query":"_id:%s AND system_version:%s"}}}'
+        b64 = q.encode('utf-8')
+        #b64 = base64.urlsafe_b64encode(
+        #    '{"query":{"query_string":{"query":"_id:%s AND system_version:%s"}}}' % (objectid, system_version))
     if facetview_url.endswith('/'):
         facetview_url = facetview_url[:-1]
     return '%s/?base64=%s' % (facetview_url, b64)
