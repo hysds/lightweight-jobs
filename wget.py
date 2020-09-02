@@ -35,7 +35,7 @@ def wget_script(dataset=None, glob_dict=None):
     scroll_id = paged_result["_scroll_id"]
 
     # stream output a page at a time for better performance and lower memory footprint
-    def stream_wget(scroll_id, glob_dict=None):
+    def stream_wget(scroll_id, paged_result, glob_dict=None):
         yield '#!/bin/bash\n#\n' + \
               '# query:\n#\n' + \
               '%s#\n#\n#' % json.dumps(dataset) + \
@@ -48,9 +48,6 @@ def wget_script(dataset=None, glob_dict=None):
         wget_cmd_password = wget_cmd + ' --user=$user --password=$password'
 
         while True:
-            paged_result = grq_es.es.scroll(scroll_id=scroll_id, scroll="10m")
-            logger.debug("paged result: {}".format(json.dumps(paged_result, indent=2)))
-            scroll_id = paged_result['_scroll_id']
             if len(paged_result['hits']['hits']) == 0:
                 break
             # Elastic Search seems like it's returning duplicate urls. Remove duplicates
@@ -90,10 +87,14 @@ def wget_script(dataset=None, glob_dict=None):
                     yield "%s --cut-dirs=%d %s/\n" % (wget_cmd, cut_dirs, url)
                     break
 
+            paged_result = grq_es.es.scroll(scroll_id=scroll_id, scroll="10m")
+            logger.debug("paged result: {}".format(json.dumps(paged_result, indent=2)))
+            scroll_id = paged_result['_scroll_id']
+
     # malarout: interate over each line of stream_wget response, and write to a file which is later attached to the
     # email.
     with open('wget_script.sh', 'w') as f:
-        for i in stream_wget(scroll_id, glob_dict):
+        for i in stream_wget(scroll_id, paged_result, glob_dict):
             f.write(i)
 
     # for gzip compressed use file extension .tar.gz and modifier "w:gz"
