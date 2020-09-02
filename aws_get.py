@@ -86,7 +86,7 @@ if __name__ == "__main__":
     body += "\n\nYou can use this AWS get script attached to download products.\n"
     body += "Please rename aws_get_script.bash to aws_get_script.sh before running it."
     if os.path.isfile('aws_get.tar.gz'):
-        aws_get_content = open('aws_get.tar.gz', 'r').read()
+        aws_get_content = open('aws_get.tar.gz', 'rb').read()
         attachments = {'aws_get.tar.gz': aws_get_content}
     notify_by_email.send_email(getpass.getuser(
     ), cc_recipients, bcc_recipients, subject, body, attachments=attachments)
