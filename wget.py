@@ -144,7 +144,7 @@ def email(query, emails, rule_name):
     body += "\n\nYou can use this wget script attached to download products.\n"
     body += "Please rename wget_script.bash to wget_script.sh before running it."
     if os.path.isfile('wget.tar.gz'):
-        wget_content = open('wget.tar.gz', 'r').read()
+        wget_content = open('wget.tar.gz', 'rb').read()
         attachments = {'wget.tar.gz': wget_content}
     notify_by_email.send_email(getpass.getuser(), cc_recipients,
                                bcc_recipients, subject, body, attachments=attachments)
