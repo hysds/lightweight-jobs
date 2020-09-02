@@ -26,7 +26,7 @@ def aws_get_script(dataset=None):
     scroll_id = paged_result["_scroll_id"]
 
     # stream output a page at a time for better performance and lower memory footprint
-    def stream_aws_get(scroll_id):
+    def stream_aws_get(scroll_id, paged_result):
         yield '#!/bin/bash\n#\n' + \
               '# query:\n#\n' + \
               '#%s#\n#\n#' % json.dumps(dataset) + \
@@ -35,8 +35,6 @@ def aws_get_script(dataset=None):
         aws_get_cmd = 'aws s3 sync {} {}\n'
 
         while True:
-            paged_result = grq_es.es.scroll(scroll_id=scroll_id, scroll="10m")
-            scroll_id = paged_result['_scroll_id']
             if len(paged_result['hits']['hits']) == 0:
                 break
             # Elastic Search seems like it's returning duplicate urls. Remove duplicates
@@ -52,11 +50,13 @@ def aws_get_script(dataset=None):
                 yield aws_get_cmd.format("{}://{}".format(
                     parsed_url.scheme, parsed_url.path[1:] if parsed_url.path.startswith('/') else parsed_url.path),
                     os.path.basename(parsed_url.path))
+            paged_result = grq_es.es.scroll(scroll_id=scroll_id, scroll="10m")
+            scroll_id = paged_result['_scroll_id']
 
     # malarout: interate over each line of stream_aws_get response, and write to a file which is later attached to the
     # email.
     with open('aws_get_script.sh', 'w') as f:
-        for i in stream_aws_get(scroll_id):
+        for i in stream_aws_get(scroll_id, paged_result):
             f.write(i)
 
     # for gzip compressed use file extension .tar.gz and modifier "w:gz"
