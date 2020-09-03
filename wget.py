@@ -31,8 +31,10 @@ def wget_script(dataset=None, glob_dict=None):
     paged_result = grq_es.es.search(body=dataset, index=index, size=100, scroll="10m")
     logger.debug("Paged Result: {}".format(json.dumps(paged_result, indent=2)))
 
+    scroll_ids = set()
     count = paged_result["hits"]["total"]["value"]
     scroll_id = paged_result["_scroll_id"]
+    scroll_ids.add(scroll_id)
 
     # stream output a page at a time for better performance and lower memory footprint
     def stream_wget(scroll_id, paged_result, glob_dict=None):
@@ -90,12 +92,16 @@ def wget_script(dataset=None, glob_dict=None):
             paged_result = grq_es.es.scroll(scroll_id=scroll_id, scroll="10m")
             logger.debug("paged result: {}".format(json.dumps(paged_result, indent=2)))
             scroll_id = paged_result['_scroll_id']
+            scroll_ids.add(scroll_id)
 
     # malarout: interate over each line of stream_wget response, and write to a file which is later attached to the
     # email.
     with open('wget_script.sh', 'w') as f:
         for i in stream_wget(scroll_id, paged_result, glob_dict):
             f.write(i)
+
+    for sid in scroll_ids:
+        grq_es.es.clear_scroll(scroll_id=sid)
 
     # for gzip compressed use file extension .tar.gz and modifier "w:gz"
     # os.rename('wget_script.sh','wget_script.bash')

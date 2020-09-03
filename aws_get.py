@@ -19,11 +19,13 @@ def aws_get_script(dataset=None):
     grq_es = get_grq_es()
     index = app.conf["DATASET_ALIAS"]
     logger.debug("Dataset: {}".format(json.dumps(dataset, indent=2)))
-    paged_result = grq_es.es.search(body=dataset, index=index, size=100, scroll="10m")
+    paged_result = grq_es.es.search(body=dataset, index=index, size=10, scroll="10m")
     logger.debug("Paged Result: {}".format(json.dumps(paged_result, indent=2)))
 
+    scroll_ids = set()
     count = paged_result["hits"]["total"]["value"]
     scroll_id = paged_result["_scroll_id"]
+    scroll_ids.add(scroll_id)
 
     # stream output a page at a time for better performance and lower memory footprint
     def stream_aws_get(scroll_id, paged_result):
@@ -52,12 +54,16 @@ def aws_get_script(dataset=None):
                     os.path.basename(parsed_url.path))
             paged_result = grq_es.es.scroll(scroll_id=scroll_id, scroll="10m")
             scroll_id = paged_result['_scroll_id']
+            scroll_ids.add(scroll_id)
 
     # malarout: interate over each line of stream_aws_get response, and write to a file which is later attached to the
     # email.
     with open('aws_get_script.sh', 'w') as f:
         for i in stream_aws_get(scroll_id, paged_result):
             f.write(i)
+
+    for sid in scroll_ids:
+        grq_es.es.clear_scroll(scroll_id=sid)
 
     # for gzip compressed use file extension .tar.gz and modifier "w:gz"
     os.rename('aws_get_script.sh', 'aws_get_script.bash')
