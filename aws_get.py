@@ -22,7 +22,7 @@ def aws_get_script(dataset=None):
     paged_result = grq_es.es.search(body=dataset, index=index, size=100, scroll="10m")
     logger.debug("Paged Result: {}".format(json.dumps(paged_result, indent=2)))
 
-    count = len(paged_result["hits"]["hits"])
+    count = paged_result["hits"]["total"]["value"]
     scroll_id = paged_result["_scroll_id"]
 
     # stream output a page at a time for better performance and lower memory footprint
