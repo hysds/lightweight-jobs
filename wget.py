@@ -1,11 +1,7 @@
 import json
-import requests
-import types
-import re
 import getpass
 import sys
 import os
-from pprint import pformat
 import logging
 import tarfile
 import notify_by_email
@@ -13,6 +9,8 @@ from hysds.celery import app
 import boto3
 from urllib.parse import urlparse
 import datetime
+
+from hysds.es_util import get_grq_es
 
 
 PRODUCT_TEMPLATE = "product_downloader-{0}-{1}-{2}"
@@ -26,50 +24,20 @@ def wget_script(dataset=None, glob_dict=None):
     """Return wget script."""
 
     # query
-    es_url = app.conf["GRQ_ES_URL"]
+    """Return AWS get script."""
+    grq_es = get_grq_es()
     index = app.conf["DATASET_ALIAS"]
-    #facetview_url = app.conf["GRQ_URL"]
-    print(('%s/%s/_search?search_type=scan&scroll=10m&size=100' % (es_url, index)))
-    logging.debug(
-        '%s/%s/_search?search_type=scan&scroll=10m&size=100' % (es_url, index))
-    print(json.dumps(dataset))
-    logging.debug(json.dumps(dataset))
+    logger.debug("Dataset: {}".format(json.dumps(dataset, indent=2)))
+    paged_result = grq_es.es.search(body=dataset, index=index, size=100, scroll="10m")
+    logger.debug("Paged Result: {}".format(json.dumps(paged_result, indent=2)))
 
-    r = requests.post('%s/%s/_search?search_type=scan&scroll=10m&size=100' %
-                      (es_url, index), json.dumps(dataset))
-    if r.status_code != 200:
-        print(("Failed to query ES. Got status code %d:\n%s" %
-               (r.status_code, json.dumps(r.json(), indent=2))))
-        logger.debug("Failed to query ES. Got status code %d:\n%s" %
-                     (r.status_code, json.dumps(r.json(), indent=2)))
-    r.raise_for_status()
-    logger.debug("result: %s" % pformat(r.json()))
-
-    scan_result = r.json()
-    count = scan_result['hits']['total']
-    #size = int(math.ceil(count/10.0))
-    #print("SIZE : %d" %size)
-    #scroll_id = scan_result['_scroll_id']
-    logging.debug('%s/%s/_search?search_type=scan&scroll=10m&size=%s' %
-                  (es_url, index, count))
-    r = requests.post('%s/%s/_search?search_type=scan&scroll=10m&size=%s' %
-                      (es_url, index, count), json.dumps(dataset))
-    if r.status_code != 200:
-        print(("Failed to query ES. Got status code %d:\n%s" %
-               (r.status_code, json.dumps(r.json(), indent=2))))
-        logger.debug("Failed to query ES. Got status code %d:\n%s" %
-                     (r.status_code, json.dumps(r.json(), indent=2)))
-    r.raise_for_status()
-    logger.debug("result: %s" % pformat(r.json()))
-
-    scan_result = r.json()
-    count = scan_result['hits']['total']
-
-    scroll_id = scan_result['_scroll_id']
+    scroll_ids = set()
+    count = paged_result["hits"]["total"]["value"]
+    scroll_id = paged_result["_scroll_id"]
+    scroll_ids.add(scroll_id)
 
     # stream output a page at a time for better performance and lower memory footprint
-    def stream_wget(scroll_id, glob_dict=None):
-        #formatted_source = format_source(source)
+    def stream_wget(scroll_id, paged_result, glob_dict=None):
         yield '#!/bin/bash\n#\n' + \
               '# query:\n#\n' + \
               '%s#\n#\n#' % json.dumps(dataset) + \
@@ -82,16 +50,11 @@ def wget_script(dataset=None, glob_dict=None):
         wget_cmd_password = wget_cmd + ' --user=$user --password=$password'
 
         while True:
-            r = requests.post('%s/_search/scroll?scroll=10m' %
-                              es_url, data=scroll_id)
-            res = r.json()
-            logger.debug("res: %s" % pformat(res))
-            scroll_id = res['_scroll_id']
-            if len(res['hits']['hits']) == 0:
+            if len(paged_result['hits']['hits']) == 0:
                 break
             # Elastic Search seems like it's returning duplicate urls. Remove duplicates
             unique_urls = []
-            for hit in res['hits']['hits']:
+            for hit in paged_result['hits']['hits']:
                 [unique_urls.append(url) for url in hit['_source']['urls']
                  if url not in unique_urls and url.startswith("http")]
 
@@ -126,14 +89,23 @@ def wget_script(dataset=None, glob_dict=None):
                     yield "%s --cut-dirs=%d %s/\n" % (wget_cmd, cut_dirs, url)
                     break
 
-    # malarout: interate over each line of stream_wget response, and write to a file which is later attached to the email.
-    with open('wget_script.sh','w') as f:
-        for i in stream_wget(scroll_id, glob_dict):
-                f.write(i)
+            paged_result = grq_es.es.scroll(scroll_id=scroll_id, scroll="10m")
+            logger.debug("paged result: {}".format(json.dumps(paged_result, indent=2)))
+            scroll_id = paged_result['_scroll_id']
+            scroll_ids.add(scroll_id)
+
+    # malarout: interate over each line of stream_wget response, and write to a file which is later attached to the
+    # email.
+    with open('wget_script.sh', 'w') as f:
+        for i in stream_wget(scroll_id, paged_result, glob_dict):
+            f.write(i)
+
+    for sid in scroll_ids:
+        grq_es.es.clear_scroll(scroll_id=sid)
 
     # for gzip compressed use file extension .tar.gz and modifier "w:gz"
     # os.rename('wget_script.sh','wget_script.bash')
-    #tar = tarfile.open("wget.tar.gz", "w:gz")
+    # tar = tarfile.open("wget.tar.gz", "w:gz")
     # tar.add('wget_script.bash')
     # tar.close()
 
@@ -178,7 +150,7 @@ def email(query, emails, rule_name):
     body += "\n\nYou can use this wget script attached to download products.\n"
     body += "Please rename wget_script.bash to wget_script.sh before running it."
     if os.path.isfile('wget.tar.gz'):
-        wget_content = open('wget.tar.gz', 'r').read()
+        wget_content = open('wget.tar.gz', 'rb').read()
         attachments = {'wget.tar.gz': wget_content}
     notify_by_email.send_email(getpass.getuser(), cc_recipients,
                                bcc_recipients, subject, body, attachments=attachments)
@@ -199,6 +171,7 @@ def make_product(rule_name, query):
     with open("{0}/{0}.dataset.json".format(name), "w") as fp:
         json.dump({"id": name, "version": "v0.1"}, fp)
 
+
 def glob_filter(names, glob_dict):
     import fnmatch
     files = []
@@ -217,7 +190,6 @@ def glob_filter(names, glob_dict):
     if exclude_csv:
         pattern_list_exc = [item.strip() for item in exclude_csv.split(',')]
 
-
         for pat in pattern_list_exc:
             matching = fnmatch.filter(names, "*" + pat)
             files_exclude.extend(matching)
@@ -225,7 +197,7 @@ def glob_filter(names, glob_dict):
         files_exclude = list(set(files_exclude))
         print("Got the following files to exclude: %s" % str(files_exclude))
 
-    #unique list
+    # unique list
     files_final = [x for x in files if x not in files_exclude]
     retfiles_set = set(files_final)
     print("Got the following files: %s" % str(retfiles_set))
@@ -237,7 +209,6 @@ if __name__ == "__main__":
     Main program of wget_script
     '''
     # encoding to a JSON object
-    query = {}
     query = json.loads(sys.argv[1])
     emails = sys.argv[2]
     rule_name = sys.argv[3]
@@ -247,18 +218,18 @@ if __name__ == "__main__":
         context_file = '_context.json'
         with open(context_file, 'r') as fin:
             context = json.load(fin)
-    except:
-        raise Exception('unable to parse _context.json from work directory')
+    except Exception as e:
+        raise Exception('unable to parse _context.json from work directory: {}'.format(str(e)))
 
     glob_dict = None
     if "include_glob" in context and "exclude_glob" in context:
-        glob_dict = {"include":context["include_glob"], "exclude": context["exclude_glob"]}
+        glob_dict = {"include": context["include_glob"], "exclude": context["exclude_glob"]}
 
     # getting the script
 
     wget_script(query, glob_dict)
-    if emails=="unused":
-	make_product(rule_name, query)
+    if emails == "unused":
+        make_product(rule_name, query)
     else:
         # now email the query
         email(query, emails, rule_name)
