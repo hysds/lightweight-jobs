@@ -8,7 +8,7 @@ import os
 from pprint import pformat
 import logging
 import tarfile
-import notify_by_email
+#import notify_by_email
 from hysds.celery import app
 import boto3
 from urllib.parse import urlparse
@@ -161,27 +161,27 @@ def get_s3_files(url):
     return files
 
 
-def email(query, emails, rule_name):
-    '''
-    Sends out an email with the script attached
-    '''
-    # for gzip compressed use file extension .tar.gz and modifier "w:gz"
-    os.rename('wget_script.sh', 'wget_script.bash')
-    tar = tarfile.open("wget.tar.gz", "w:gz")
-    tar.add('wget_script.bash')
-    tar.close()
-    attachments = None
-    cc_recipients = [i.strip() for i in emails.split(',')]
-    bcc_recipients = []
-    subject = "[monitor] (wget_script:%s)" % (rule_name)
-    body = "Product was ingested from query: %s" % query
-    body += "\n\nYou can use this wget script attached to download products.\n"
-    body += "Please rename wget_script.bash to wget_script.sh before running it."
-    if os.path.isfile('wget.tar.gz'):
-        wget_content = open('wget.tar.gz', 'r').read()
-        attachments = {'wget.tar.gz': wget_content}
-    notify_by_email.send_email(getpass.getuser(), cc_recipients,
-                               bcc_recipients, subject, body, attachments=attachments)
+#def email(query, emails, rule_name):
+#    '''
+#    Sends out an email with the script attached
+#    '''
+#    # for gzip compressed use file extension .tar.gz and modifier "w:gz"
+#    os.rename('wget_script.sh', 'wget_script.bash')
+#    tar = tarfile.open("wget.tar.gz", "w:gz")
+#    tar.add('wget_script.bash')
+#    tar.close()
+#    attachments = None
+#    cc_recipients = [i.strip() for i in emails.split(',')]
+#    bcc_recipients = []
+#    subject = "[monitor] (wget_script:%s)" % (rule_name)
+#    body = "Product was ingested from query: %s" % query
+#    body += "\n\nYou can use this wget script attached to download products.\n"
+#    body += "Please rename wget_script.bash to wget_script.sh before running it."
+#    if os.path.isfile('wget.tar.gz'):
+#       wget_content = open('wget.tar.gz', 'r').read()
+#        attachments = {'wget.tar.gz': wget_content}
+#    notify_by_email.send_email(getpass.getuser(), cc_recipients,
+#                               bcc_recipients, subject, body, attachments=attachments)
 
 
 def make_product(rule_name, query):
@@ -258,7 +258,7 @@ if __name__ == "__main__":
 
     wget_script(query, glob_dict)
     if emails=="unused":
-	make_product(rule_name, query)
-    else:
-        # now email the query
-        email(query, emails, rule_name)
+        make_product(rule_name, query)
+#    else:
+#        # now email the query
+#        email(query, emails, rule_name)
