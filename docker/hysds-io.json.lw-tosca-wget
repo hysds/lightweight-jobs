@@ -6,8 +6,7 @@
     {
       "name": "query",
       "type": "text",
-      "from": "passthrough",
-      "lambda": "lambda query: \"'{0}'\".format(query)"
+      "from": "passthrough"
     },
     {
       "name": "emails",
