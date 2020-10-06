@@ -3,6 +3,7 @@
 source ~/.bash_profile
 
 BASE_PATH=$(dirname "${BASH_SOURCE}")
+export PYTHONDONTWRITEBYTECODE=1
 
 # check args
 if [ "$#" -eq 3 ]; then

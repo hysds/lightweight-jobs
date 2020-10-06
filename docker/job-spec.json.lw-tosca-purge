@@ -1,6 +1,6 @@
 {
   "required_queues":["system-jobs-queue"],
-  "command":"python /home/ops/lightweight-jobs/purge.py",
+  "command":"/home/ops/lightweight-jobs/purge.sh",
   "imported_worker_files":{
     "$HOME/.aws":"/home/ops/.aws",
     "$HOME/.azure": "/home/ops/.azure"

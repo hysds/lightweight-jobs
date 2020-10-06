@@ -1,6 +1,6 @@
 {
   "required_queues":["system-jobs-queue"],
-  "command":"python /home/ops/lightweight-jobs/purge.py",
+  "command":"/home/ops/lightweight-jobs/purge.sh",
   "disk_usage":"3GB",
   "soft_time_limit": 86400,
   "time_limit": 86700,
