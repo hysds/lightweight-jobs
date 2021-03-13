@@ -2,6 +2,7 @@
   "label":"Wget Script Glob Select via E-mail",
   "component":"tosca",
   "submission_type":"individual",
+  "enable_dedup": false,
   "params" : [
     {
       "name": "query",

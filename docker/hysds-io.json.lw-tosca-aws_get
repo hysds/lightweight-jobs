@@ -2,6 +2,7 @@
   "label":"AWS get script",
   "component":"tosca",
   "submission_type":"individual",
+  "enable_dedup": false,
   "params" : [
     {
       "name": "query",
