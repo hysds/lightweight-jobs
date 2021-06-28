@@ -62,7 +62,7 @@ def purge_products(query, component, operation):
                 deleted_datasets[dataset] = 1
         msg_details = "Datasets purged by type:\n\n"
         for ds in deleted_datasets.keys():
-            msg_details += "{} {}\n".format(ds, deleted_datasets[ds])
+            msg_details += "{} - {}\n".format(deleted_datasets[ds], ds)
 
         create_info_message_files(msg_details=msg_details)
     else:
