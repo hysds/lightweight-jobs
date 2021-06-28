@@ -5,7 +5,7 @@ import logging
 import osaka.main
 from hysds.celery import app
 from hysds.es_util import get_mozart_es, get_grq_es
-from utils import revoke
+from utils import revoke, create_info_message_files
 
 
 LOG_FILE_NAME = 'purge.log'
@@ -37,12 +37,12 @@ def purge_products(query, component, operation):
         es_index = app.conf["DATASET_ALIAS"]
 
     results = es.query(index=es_index, body=query)  # Querying for products
-
     if component == 'tosca':
+        deleted_datasets = dict()
         for result in results:
             ident = result["_id"]
             index = result["_index"]
-
+            dataset = result["_source"]["dataset"]
             # find the Best URL first
             best = None
             for url in result["_source"]["urls"]:
@@ -55,7 +55,16 @@ def purge_products(query, component, operation):
 
             es.delete_by_id(index=index, id=ident, ignore=404)  # removing the metadata
             logger.info('Purged %s' % ident)
+            if dataset in deleted_datasets:
+                count = deleted_datasets[dataset]
+                deleted_datasets[dataset] = count + 1
+            else:
+                deleted_datasets[dataset] = 1
+        msg_details = "Datasets purged by type:\n\n"
+        for ds in deleted_datasets.keys():
+            msg_details += "{} {}\n".format(ds, deleted_datasets[ds])
 
+        create_info_message_files(msg_details=msg_details)
     else:
         purge = True if operation == 'purge' else False  # purge job from index
 
