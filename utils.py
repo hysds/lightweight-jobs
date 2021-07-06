@@ -37,3 +37,27 @@ def revoke(task_id, state):
 
     # revoke task
     app.control.revoke(task_id, terminate=True)
+
+
+def create_info_message_files(msg=None, msg_details=None):
+    """
+    Creates the _alt_msg.txt and _alt_msg_details.txt
+    files for population into the job status json.
+
+    :param msg: The short info message. Can be a list or a string.
+     Should be shorter than 35 characters.
+    :param msg_details: The message details.
+    :return:
+    """
+
+    if msg:
+        with open('_alt_msg.txt', 'w') as f:
+            if isinstance(msg, list):
+                for m in msg:
+                    f.write("%s\n" % str(m))
+            else:
+                f.write("%s\n" % str(msg))
+
+    if msg_details:
+        with open('_alt_msg_details.txt', 'w') as f:
+            f.write("%s\n" % msg_details)
