@@ -1,12 +1,13 @@
 #!/bin/env python
 import json
 import logging
+import psutil
 
 import osaka.main
 from hysds.celery import app
 from hysds.es_util import get_mozart_es, get_grq_es
 from utils import revoke, create_info_message_files
-
+from multiprocessing import Pool
 
 LOG_FILE_NAME = 'purge.log'
 logging.basicConfig(filename=LOG_FILE_NAME, filemode='a', level=logging.DEBUG)
@@ -17,6 +18,12 @@ def read_context():
     with open('_context.json', 'r') as f:
         cxt = json.load(f)
         return cxt
+
+
+def parallel_run(query, component, operation):
+    num_processes = psutil.cpu_count() - 2
+    with Pool(num_processes) as p:
+        purge_products(query, component, operation)
 
 
 def purge_products(query, component, operation):
@@ -116,4 +123,4 @@ if __name__ == "__main__":
     except TypeError as e:
         logger.warning(e)
 
-    purge_products(query_obj, component_val, operation_val)
+    parallel_run(query_obj, component_val, operation_val)
