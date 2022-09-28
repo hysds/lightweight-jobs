@@ -23,7 +23,7 @@ def read_context():
 def parallel_run(query, component, operation):
     num_processes = psutil.cpu_count() - 2
     with Pool(num_processes) as p:
-        purge_products(query, component, operation)
+        p.apply_async(purge_products, args=(query, component, operation))
 
 
 def purge_products(query, component, operation):
