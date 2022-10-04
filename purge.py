@@ -8,7 +8,6 @@ from hysds.celery import app
 from hysds.es_util import get_mozart_es, get_grq_es
 from utils import revoke, create_info_message_files
 from multiprocessing import Pool
-from xmlrpc.client import ServerProxy
 
 LOG_FILE_NAME = 'purge.log'
 logging.basicConfig(filename=LOG_FILE_NAME, filemode='a', level=logging.DEBUG)
@@ -18,10 +17,8 @@ logger = logging
 def init():
     global tosca_es
     global mozart_es
-    tosca = get_grq_es()
-    mozart = get_mozart_es()
-    tosca_es = ServerProxy(tosca)
-    mozart_es = ServerProxy(mozart)
+    tosca_es = get_grq_es()
+    mozart_es = get_mozart_es()
 
 
 def read_context():
