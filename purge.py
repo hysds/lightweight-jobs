@@ -20,10 +20,29 @@ def read_context():
         return cxt
 
 
-def parallel_run(query, component, operation):
-    num_processes = psutil.cpu_count() - 2
-    with Pool(num_processes) as p:
-        p.apply_async(purge_products, args=(query, component, operation))
+def delete_dataset(es, es_result, deleted_datasets):
+    ident = es_result["_id"]
+    index = es_result["_index"]
+    dataset = es_result["_source"]["dataset"]
+    # find the Best URL first
+    best = None
+    for url in es_result["_source"]["urls"]:
+        if not url.startswith("http"):
+            best = url
+
+    print('paramater being passed to osaka.main.rmall: ', best)  # making osaka call to delete product
+    if best is not None:
+        osaka.main.rmall(best)
+
+    es.delete_by_id(index=index, id=ident, ignore=404)  # removing the metadata
+    logger.info('Purged %s' % ident)
+    if dataset in deleted_datasets:
+        count = deleted_datasets[dataset]
+        deleted_datasets[dataset] = count + 1
+    else:
+        deleted_datasets[dataset] = 1
+
+    return deleted_datasets
 
 
 def purge_products(query, component, operation):
@@ -44,30 +63,13 @@ def purge_products(query, component, operation):
         es_index = app.conf["DATASET_ALIAS"]
 
     results = es.query(index=es_index, body=query)  # Querying for products
+    num_processes = psutil.cpu_count() - 2
+    p = Pool(num_processes)
     if component == 'tosca':
         deleted_datasets = dict()
         for result in results:
-            ident = result["_id"]
-            index = result["_index"]
-            dataset = result["_source"]["dataset"]
-            # find the Best URL first
-            best = None
-            for url in result["_source"]["urls"]:
-                if not url.startswith("http"):
-                    best = url
-
-            print('paramater being passed to osaka.main.rmall: ', best)  # making osaka call to delete product
-            if best is not None:
-                osaka.main.rmall(best)
-
-            es.delete_by_id(index=index, id=ident, ignore=404)  # removing the metadata
-            logger.info('Purged %s' % ident)
-            if dataset in deleted_datasets:
-                count = deleted_datasets[dataset]
-                deleted_datasets[dataset] = count + 1
-            else:
-                deleted_datasets[dataset] = 1
-
+            updated_deletion = p.apply(delete_dataset, args=(es, result, deleted_datasets)).get()
+            deleted_datasets = updated_deletion
         if len(deleted_datasets) != 0:
             msg_details = "Datasets purged by type:\n\n"
             for ds in deleted_datasets.keys():
@@ -123,4 +125,4 @@ if __name__ == "__main__":
     except TypeError as e:
         logger.warning(e)
 
-    parallel_run(query_obj, component_val, operation_val)
+    purge_products((query_obj, component_val, operation_val))
