@@ -127,4 +127,4 @@ if __name__ == "__main__":
     except TypeError as e:
         logger.warning(e)
 
-    purge_products((query_obj, component_val, operation_val))
+    purge_products(query_obj, component_val, operation_val)
