@@ -21,8 +21,8 @@ def init():
     tosca = get_grq_es()
     mozart = get_mozart_es()
     print(tosca)
-    tosca_es = ServerProxy(tosca)
-    mozart_es = ServerProxy(mozart)
+    tosca_es = ServerProxy(str(tosca))
+    mozart_es = ServerProxy(str(mozart))
 
 
 def read_context():
