@@ -8,10 +8,20 @@ from hysds.celery import app
 from hysds.es_util import get_mozart_es, get_grq_es
 from utils import revoke, create_info_message_files
 from multiprocessing import Pool
+from xmlrpc.client import ServerProxy
 
 LOG_FILE_NAME = 'purge.log'
 logging.basicConfig(filename=LOG_FILE_NAME, filemode='a', level=logging.DEBUG)
 logger = logging
+
+
+def init():
+    global tosca_es
+    global mozart_es
+    tosca = get_grq_es()
+    mozart = get_mozart_es()
+    tosca_es = ServerProxy(tosca)
+    mozart_es = ServerProxy(mozart)
 
 
 def read_context():
@@ -36,7 +46,7 @@ def delete_dataset(es, es_result, deleted_datasets):
     if best is not None:
         osaka.main.rmall(best)
 
-    es.delete_by_id(index=index, id=ident, ignore=404)  # removing the metadata
+    tosca_es.delete_by_id(index=index, id=ident, ignore=404)  # removing the metadata
     logger.info('Purged %s' % ident)
     if dataset in deleted_datasets:
         count = deleted_datasets[dataset]
@@ -66,7 +76,7 @@ def purge_products(query, component, operation):
 
     results = es.query(index=es_index, body=query)  # Querying for products
     num_processes = psutil.cpu_count() - 2
-    p = Pool(num_processes)
+    p = Pool(processes=num_processes, initializer=init)
     if component == 'tosca':
         deleted_datasets = dict()
         for result in results:
