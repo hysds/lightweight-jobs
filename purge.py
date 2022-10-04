@@ -26,6 +26,8 @@ def delete_dataset(es, es_result, deleted_datasets):
     dataset = es_result["_source"]["dataset"]
     # find the Best URL first
     best = None
+    logger.info("DEBUG")
+    print("DEBUG")
     for url in es_result["_source"]["urls"]:
         if not url.startswith("http"):
             best = url
