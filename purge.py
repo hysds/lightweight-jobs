@@ -14,7 +14,7 @@ LOG_FILE_NAME = 'purge.log'
 logging.basicConfig(filename=LOG_FILE_NAME, filemode='a', level=logging.DEBUG)
 logger = logging
 
-tosca_es = get_mozart_es()
+tosca_es = get_grq_es()
 
 
 #def init():
