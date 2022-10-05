@@ -18,11 +18,11 @@ logger = logging
 def init():
     global tosca_es
     global mozart_es
-    tosca = get_grq_es()
-    mozart = get_mozart_es()
+    tosca = str(get_grq_es())
+    mozart = str(get_mozart_es())
     print(tosca)
-    tosca_es = ServerProxy(str(tosca))
-    mozart_es = ServerProxy(str(mozart))
+    tosca_es = ServerProxy(tosca)
+    mozart_es = ServerProxy(mozart)
 
 
 def read_context():
