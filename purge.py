@@ -14,12 +14,14 @@ LOG_FILE_NAME = 'purge.log'
 logging.basicConfig(filename=LOG_FILE_NAME, filemode='a', level=logging.DEBUG)
 logger = logging
 
+tosca_es = get_mozart_es()
 
-def init():
-    global tosca_es
-    global mozart_es
-    tosca_es = get_grq_es()
-    mozart_es = get_mozart_es()
+
+#def init():
+#    global tosca_es
+#    global mozart_es
+#    tosca_es = get_grq_es()
+#    mozart_es = get_mozart_es()
 
 
 def read_context():
@@ -72,7 +74,7 @@ def purge_products(query, component, operation):
 
     results = es.query(index=es_index, body=query)  # Querying for products
     num_processes = psutil.cpu_count() - 2
-    p = Pool(processes=num_processes, initializer=init)
+    p = Pool(processes=num_processes)
     if component == 'tosca':
         deleted_datasets = dict()
         for result in results:
