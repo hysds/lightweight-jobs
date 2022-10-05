@@ -41,10 +41,10 @@ def delete_dataset(es_result, deleted_datasets):
             best = url
 
     print('paramater being passed to osaka.main.rmall: ', best)  # making osaka call to delete product
-    #if best is not None:
-    #    osaka.main.rmall(best)
+    if best is not None:
+        osaka.main.rmall(best)
 
-    #tosca_es.delete_by_id(index=index, id=ident, ignore=404)  # removing the metadata
+    tosca_es.delete_by_id(index=index, id=ident, ignore=404)  # removing the metadata
     logger.info('Purged %s' % ident)
     if dataset in deleted_datasets:
         count = deleted_datasets[dataset]
