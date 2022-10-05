@@ -18,9 +18,8 @@ logger = logging
 def init():
     global tosca_es
     global mozart_es
-    tosca = str(get_grq_es())
-    mozart = str(get_mozart_es())
-    print(tosca)
+    tosca = get_grq_es()
+    mozart = get_mozart_es()
     tosca_es = ServerProxy(tosca)
     mozart_es = ServerProxy(mozart)
 
@@ -37,8 +36,6 @@ def delete_dataset(es, es_result, deleted_datasets):
     dataset = es_result["_source"]["dataset"]
     # find the Best URL first
     best = None
-    logger.info("DEBUG")
-    print("DEBUG")
     for url in es_result["_source"]["urls"]:
         if not url.startswith("http"):
             best = url
