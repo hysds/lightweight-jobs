@@ -8,7 +8,6 @@ from hysds.celery import app
 from hysds.es_util import get_mozart_es, get_grq_es
 from utils import revoke, create_info_message_files
 from multiprocessing import Pool
-from xmlrpc.client import ServerProxy
 
 LOG_FILE_NAME = 'purge.log'
 logging.basicConfig(filename=LOG_FILE_NAME, filemode='a', level=logging.DEBUG)
@@ -17,40 +16,34 @@ logger = logging
 tosca_es = get_grq_es()
 
 
-#def init():
-#    global tosca_es
-#    global mozart_es
-#    tosca_es = get_grq_es()
-#    mozart_es = get_mozart_es()
-
-
 def read_context():
     with open('_context.json', 'r') as f:
         cxt = json.load(f)
         return cxt
 
 
-def delete_dataset(es_result, deleted_datasets):
-    ident = es_result["_id"]
-    index = es_result["_index"]
-    dataset = es_result["_source"]["dataset"]
-    # find the Best URL first
-    best = None
-    for url in es_result["_source"]["urls"]:
-        if not url.startswith("http"):
-            best = url
+def delete_dataset(es_results, deleted_datasets):
+    for es_result in es_results:
+        ident = es_result["_id"]
+        index = es_result["_index"]
+        dataset = es_result["_source"]["dataset"]
+        # find the Best URL first
+        best = None
+        for url in es_result["_source"]["urls"]:
+            if not url.startswith("http"):
+                best = url
 
-    print('paramater being passed to osaka.main.rmall: ', best)  # making osaka call to delete product
-    if best is not None:
-        osaka.main.rmall(best)
+        print('paramater being passed to osaka.main.rmall: ', best)  # making osaka call to delete product
+        if best is not None:
+            osaka.main.rmall(best)
 
-    tosca_es.delete_by_id(index=index, id=ident, ignore=404)  # removing the metadata
-    logger.info('Purged %s' % ident)
-    if dataset in deleted_datasets:
-        count = deleted_datasets[dataset]
-        deleted_datasets[dataset] = count + 1
-    else:
-        deleted_datasets[dataset] = 1
+        tosca_es.delete_by_id(index=index, id=ident, ignore=404)  # removing the metadata
+        logger.info('Purged %s' % ident)
+        if dataset in deleted_datasets:
+            count = deleted_datasets[dataset]
+            deleted_datasets[dataset] = count + 1
+        else:
+            deleted_datasets[dataset] = 1
 
     return deleted_datasets
 
@@ -77,9 +70,8 @@ def purge_products(query, component, operation):
     p = Pool(processes=num_processes)
     if component == 'tosca':
         deleted_datasets = dict()
-        for result in results:
-            updated_deletion = p.apply(delete_dataset, args=(result, deleted_datasets))
-            deleted_datasets = updated_deletion
+        deleted_datasets = p.apply(delete_dataset, args=(result, deleted_datasets))
+
         if len(deleted_datasets) != 0:
             msg_details = "Datasets purged by type:\n\n"
             for ds in deleted_datasets.keys():
