@@ -70,7 +70,7 @@ def purge_products(query, component, operation):
     p = Pool(processes=num_processes)
     if component == 'tosca':
         deleted_datasets = dict()
-        deleted_datasets = p.starmap(delete_dataset, (results, deleted_datasets))
+        deleted_datasets = p.starmap(delete_dataset, [(results, deleted_datasets)])
         if len(deleted_datasets) != 0:
             msg_details = "Datasets purged by type:\n\n"
             for ds in deleted_datasets.keys():
