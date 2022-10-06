@@ -71,7 +71,7 @@ def purge_products(query, component, operation):
         deleted_datasets = dict()
         for result in results:
             updated_deletion = p.apply_async(delete_dataset, args=(result, deleted_datasets))
-            deleted_datasets = updated_deletion
+            deleted_datasets = updated_deletion.get()
         if len(deleted_datasets) != 0:
             msg_details = "Datasets purged by type:\n\n"
             for ds in deleted_datasets.keys():
