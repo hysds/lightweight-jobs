@@ -70,7 +70,8 @@ def purge_products(query, component, operation):
     p = Pool(processes=num_processes)
     if component == 'tosca':
         deleted_datasets = dict()
-        updated_deletion = p.apply_async(delete_dataset, args=(results, deleted_datasets))
+        updated_deletion = [p.apply_async(delete_dataset, args=(results, deleted_datasets)) for i in
+                            range(0, num_processes)]
         deleted_datasets = updated_deletion.get()
         if len(deleted_datasets) != 0:
             msg_details = "Datasets purged by type:\n\n"
