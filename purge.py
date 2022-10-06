@@ -77,6 +77,7 @@ def purge_products(query, component, operation):
             #    msg_details += "{} - {}\n".format(deleted_datasets[ds], ds)
 
             #create_info_message_files(msg_details=msg_details)
+            logger.info(deleted_datasets)
     else:
         purge = True if operation == 'purge' else False  # purge job from index
 
