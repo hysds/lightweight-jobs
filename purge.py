@@ -82,13 +82,13 @@ def purge_products(query, component, operation):
                 failed_deletions.append(row["delete"])
 
         if deleted_docs or failed_deletions:
-            msg_details = "Datasets purged by type:\n\n"
+            msg_details = ""
             if len(deleted_docs) > 0:
-                msg_details = "Datasets purged by type:\n\n"
+                msg_details += "Datasets purged by type:\n"
                 msg_details += json.dumps(deleted_docs)
             if len(failed_deletions) > 0:
                 msg_details += "\n\n"
-                msg_details += "Datasets failed to purge:\n\n"
+                msg_details += "Datasets failed to purge:\n"
                 msg_details += json.dumps(failed_deletions)
             create_info_message_files(msg_details=msg_details)
     else:
