@@ -1,13 +1,11 @@
 #!/bin/env python
 import json
 import logging
-# import psutil
 
 import osaka.main
 from hysds.celery import app
 from hysds.es_util import get_mozart_es, get_grq_es
 from utils import revoke, create_info_message_files
-from multiprocessing import Pool
 
 LOG_FILE_NAME = 'purge.log'
 logging.basicConfig(filename=LOG_FILE_NAME, filemode='a', level=logging.DEBUG)
