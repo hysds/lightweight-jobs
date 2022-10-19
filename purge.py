@@ -53,11 +53,13 @@ def purge_products(query, component, operation):
     if component == "mozart" or component == "figaro":
         es = get_mozart_es()
         es_index = app.conf["STATUS_ALIAS"]
+        _source = ["uuid", "payload_id"]
     else:  # "tosca"
         es = get_grq_es()
         es_index = app.conf["DATASET_ALIAS"]
+        _source = ["dataset", "urls"]
 
-    results = es.query(index=es_index, body=query)  # Querying for products
+    results = es.query(index=es_index, body=query, _source=_source)  # Querying for products
 
     # filter fields returned with the bulk API
     filter_path = [
