@@ -1,7 +1,7 @@
 #!/bin/env python
 import json
 import logging
-import psutil
+# import psutil
 
 import osaka.main
 from hysds.celery import app
@@ -60,22 +60,38 @@ def purge_products(query, component, operation):
         es_index = app.conf["DATASET_ALIAS"]
 
     results = es.query(index=es_index, body=query)  # Querying for products
-    num_processes = psutil.cpu_count() - 2
-    p = Pool(processes=num_processes)
-    if component == 'tosca':
-        deleted_datasets = dict()
-        updated_datasets = p.map(delete_dataset, results)
-        for dataset in updated_datasets:
-            if dataset in deleted_datasets:
-                count = deleted_datasets[dataset]
-                deleted_datasets[dataset] = count + 1
-            else:
-                deleted_datasets[dataset] = 1
-        if len(deleted_datasets) != 0:
-            msg_details = "Datasets purged by type:\n\n"
-            for ds in deleted_datasets.keys():
-                msg_details += "{} - {}\n".format(deleted_datasets[ds], ds)
 
+    # filter fields returned with the bulk API
+    filter_path = [
+        "items.delete.error.reason",
+        "items.delete._id",
+        "items.delete._index",
+        "items.delete.result"
+    ]
+
+    if component == 'tosca':
+        body = [{
+            "delete": {"_index": row["_index"], "_id": row["_id"]}
+        } for row in results]
+        bulk_res = es.es.bulk(index=es_index, body=body, filter_path=filter_path)
+
+        deleted_docs = []
+        failed_deletions = []
+        for row in bulk_res["items"]:
+            if row["delete"].get("result", None) == "deleted":
+                deleted_docs.append(row["delete"]["_id"])
+            else:
+                failed_deletions.append(row["delete"])
+
+        if deleted_docs or failed_deletions:
+            msg_details = "Datasets purged by type:\n\n"
+            if len(deleted_docs) > 0:
+                msg_details = "Datasets purged by type:\n\n"
+                msg_details += json.dumps(deleted_docs)
+            if len(failed_deletions) > 0:
+                msg_details += "\n\n"
+                msg_details += "Datasets failed to purge:\n\n"
+                msg_details += json.dumps(failed_deletions)
             create_info_message_files(msg_details=msg_details)
     else:
         purge = True if operation == 'purge' else False  # purge job from index
