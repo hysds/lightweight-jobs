@@ -81,23 +81,32 @@ def purge_products(query, component, operation):
         } for row in results]
         bulk_res = es.es.bulk(index=es_index, body=body, filter_path=filter_path)
 
-        deleted_docs = []
+        dataset_purge_stats = {}
+        deleted_docs_count = 0
         failed_deletions = []
         for row in bulk_res["items"]:
             if row["delete"].get("result", None) == "deleted":
-                deleted_docs.append(row)
+                deleted_docs_count += 1
+                _index = row["delete"]["_index"]
+                if _index not in dataset_purge_stats:
+                    dataset_purge_stats[_index] = 1
+                else:
+                    dataset_purge_stats[_index] += 1
+
             else:
                 failed_deletions.append(row["delete"])
 
-        if deleted_docs or failed_deletions:
+        if deleted_docs_count or failed_deletions:
             msg_details = ""
-            if len(deleted_docs) > 0:
+            if deleted_docs_count > 0:
                 msg_details += "Datasets purged from ES:\n"
-                msg_details += json.dumps(list(map(lambda x: x["delete"]["_id"], deleted_docs)))
+                logger.info(json.dumps(dataset_purge_stats, indent=2))
             if len(failed_deletions) > 0:
                 msg_details += "\n\n"
                 msg_details += "Datasets failed to purge from ES:\n"
                 msg_details += json.dumps(failed_deletions)
+                logger.warning("datasets failed to delete: ")
+                logger.warning(json.dumps(failed_deletions))
             create_info_message_files(msg_details=msg_details)
     else:
         purge = True if operation == 'purge' else False  # purge job from index
