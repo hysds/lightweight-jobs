@@ -11,7 +11,7 @@ from hysds.es_util import get_mozart_es, get_grq_es
 from utils import revoke, create_info_message_files
 
 LOG_FILE_NAME = 'purge.log'
-logging.basicConfig(filename=LOG_FILE_NAME, filemode='a', level=logging.INFO)
+logging.basicConfig(filename=LOG_FILE_NAME, filemode='a', level=logging.ERROR)
 logger = logging
 
 tosca_es = get_grq_es()
@@ -93,7 +93,7 @@ def purge_products(query, component, operation):
             msg_details = ""
             if len(deleted_docs) > 0:
                 msg_details += "Datasets purged from ES:\n"
-                msg_details += json.dumps(list(map(lambda x: x["_id"], deleted_docs)))
+                msg_details += json.dumps(list(map(lambda x: x["delete"]["_id"], deleted_docs)))
             if len(failed_deletions) > 0:
                 msg_details += "\n\n"
                 msg_details += "Datasets failed to purge from ES:\n"
