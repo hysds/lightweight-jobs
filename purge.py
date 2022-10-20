@@ -2,6 +2,9 @@
 import json
 import logging
 
+import psutil
+from multiprocessing import Pool
+
 import osaka.main
 from hysds.celery import app
 from hysds.es_util import get_mozart_es, get_grq_es
@@ -20,23 +23,21 @@ def read_context():
         return cxt
 
 
-def delete_dataset(es_result):
-    ident = es_result["_id"]
-    index = es_result["_index"]
+def delete_from_object_store(es_result):
+    _id = es_result["_id"]
     dataset = es_result["_source"]["dataset"]
-    # find the Best URL first
-    best = None
+
+    best = None  # find the Best URL first
     for url in es_result["_source"]["urls"]:
         if not url.startswith("http"):
             best = url
 
-    print('paramater being passed to osaka.main.rmall: ', best)  # making osaka call to delete product
     if best is not None:
+        logger.info('paramater being passed to osaka.main.rmall: ', best)  # making osaka call to delete product
         osaka.main.rmall(best)
-
-    tosca_es.delete_by_id(index=index, id=ident, ignore=404)  # removing the metadata
-    logger.info('Purged %s' % ident)
-
+        logger.info('Purged %s' % _id)
+    else:
+        logger.warning("url not found for: %s" % _id)
     return dataset
 
 
@@ -70,6 +71,11 @@ def purge_products(query, component, operation):
     ]
 
     if component == 'tosca':
+        num_processes = psutil.cpu_count() - 2
+        p = Pool(processes=num_processes)
+        logger.info("purging datasets from object store: ")
+        p.map(delete_from_object_store, results)
+
         body = [{
             "delete": {"_index": row["_index"], "_id": row["_id"]}
         } for row in results]
@@ -79,18 +85,18 @@ def purge_products(query, component, operation):
         failed_deletions = []
         for row in bulk_res["items"]:
             if row["delete"].get("result", None) == "deleted":
-                deleted_docs.append(row["delete"]["_id"])
+                deleted_docs.append(row)
             else:
                 failed_deletions.append(row["delete"])
 
         if deleted_docs or failed_deletions:
             msg_details = ""
             if len(deleted_docs) > 0:
-                msg_details += "Datasets purged by type:\n"
-                msg_details += json.dumps(deleted_docs)
+                msg_details += "Datasets purged from ES:\n"
+                msg_details += json.dumps(list(map(lambda x: x["_id"], deleted_docs)))
             if len(failed_deletions) > 0:
                 msg_details += "\n\n"
-                msg_details += "Datasets failed to purge:\n"
+                msg_details += "Datasets failed to purge from ES:\n"
                 msg_details += json.dumps(failed_deletions)
             create_info_message_files(msg_details=msg_details)
     else:
