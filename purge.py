@@ -33,7 +33,7 @@ def delete_from_object_store(es_result):
             best = url
 
     if best is not None:
-        logger.info('paramater being passed to osaka.main.rmall: ', best)  # making osaka call to delete product
+        print('paramater being passed to osaka.main.rmall:', best)  # making osaka call to delete product
         osaka.main.rmall(best)
         logger.info('Purged %s' % _id)
     else:
@@ -88,11 +88,11 @@ def purge_products(query, component, operation):
             if row["delete"].get("result", None) == "deleted":
                 deleted_docs_count += 1
                 _index = row["delete"]["_index"]
+                logger.info("deleted from ES: %s" % row["delete"]["_id"])
                 if _index not in dataset_purge_stats:
                     dataset_purge_stats[_index] = 1
                 else:
                     dataset_purge_stats[_index] += 1
-
             else:
                 failed_deletions.append(row["delete"])
 
@@ -100,7 +100,7 @@ def purge_products(query, component, operation):
             msg_details = ""
             if deleted_docs_count > 0:
                 msg_details += "Datasets purged from ES:\n"
-                logger.info(json.dumps(dataset_purge_stats, indent=2))
+                msg_details += json.dumps(dataset_purge_stats, indent=2)
             if len(failed_deletions) > 0:
                 msg_details += "\n\n"
                 msg_details += "Datasets failed to purge from ES:\n"
