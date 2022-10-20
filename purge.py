@@ -80,6 +80,7 @@ def purge_products(query, component, operation):
             "delete": {"_index": row["_index"], "_id": row["_id"]}
         } for row in results]
         bulk_res = es.es.bulk(index=es_index, body=body, filter_path=filter_path)
+        logger.info(bulk_res)
 
         dataset_purge_stats = {}
         deleted_docs_count = 0
@@ -100,7 +101,8 @@ def purge_products(query, component, operation):
             msg_details = ""
             if deleted_docs_count > 0:
                 msg_details += "Datasets purged from ES:\n"
-                msg_details += json.dumps(dataset_purge_stats, indent=2)
+                for k, v in dataset_purge_stats.items():
+                    msg_details += "{} - {}\n".format(k, v)
             if len(failed_deletions) > 0:
                 msg_details += "\n\n"
                 msg_details += "Datasets failed to purge from ES:\n"
