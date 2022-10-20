@@ -35,7 +35,7 @@ def delete_from_object_store(es_result):
     if best is not None:
         print('paramater being passed to osaka.main.rmall:', best)  # making osaka call to delete product
         osaka.main.rmall(best)
-        logger.info('Purged %s' % _id)
+        logger.info('Purged from object store %s' % _id)
     else:
         logger.warning("url not found for: %s" % _id)
     return dataset
@@ -80,7 +80,7 @@ def purge_products(query, component, operation):
             "delete": {"_index": row["_index"], "_id": row["_id"]}
         } for row in results]
         bulk_res = es.es.bulk(index=es_index, body=body, filter_path=filter_path)
-        logger.info(bulk_res)
+        logger.info(json.dumps(bulk_res, indent=2))
 
         dataset_purge_stats = {}
         deleted_docs_count = 0
