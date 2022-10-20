@@ -11,7 +11,7 @@ from hysds.es_util import get_mozart_es, get_grq_es
 from utils import revoke, create_info_message_files
 
 LOG_FILE_NAME = 'purge.log'
-logging.basicConfig(filename=LOG_FILE_NAME, filemode='a', level=logging.DEBUG)
+logging.basicConfig(filename=LOG_FILE_NAME, filemode='a', level=logging.INFO)
 logger = logging
 
 tosca_es = get_grq_es()
