@@ -74,13 +74,14 @@ def purge_products(query, component, operation):
         num_processes = psutil.cpu_count() - 2
         p = Pool(processes=num_processes)
         logger.info("purging datasets from object store: ")
-        p.map(delete_from_object_store, results)
 
         body = [{
             "delete": {"_index": row["_index"], "_id": row["_id"]}
         } for row in results]
         bulk_res = es.es.bulk(index=es_index, body=body, filter_path=filter_path)
         logger.info(json.dumps(bulk_res, indent=2))
+
+        p.map(delete_from_object_store, results)  # deleting objects from storage (s3, etc.)
 
         dataset_purge_stats = {}
         deleted_docs_count = 0
