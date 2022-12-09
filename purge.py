@@ -41,12 +41,13 @@ def delete_from_object_store(es_result):
     return dataset
 
 
-def purge_products(query, component, operation):
+def purge_products(query, component, operation, delete_from_obj_store=True):
     """
     Iterator used to iterate across a query result and submit jobs for every hit
     :param query: query to post to ElasticSearch and whose result will be iterated, JSON sting enc
     :param component: tosca || figaro
     :param operation: purge or something else
+    :param delete_from_obj_store: Flag to indicate whether to purge the dataset from the object store
     """
     logger.debug("action: %s for %s", operation, component)
     logger.debug("query: %s" % json.dumps(query, indent=2))
@@ -80,8 +81,11 @@ def purge_products(query, component, operation):
         bulk_res = es.es.bulk(index=es_index, body=body, filter_path=filter_path)
         logger.info(json.dumps(bulk_res, indent=2))
 
-        logger.info("purging datasets from object store: ")
-        p.map(delete_from_object_store, results)  # deleting objects from storage (s3, etc.)
+        if delete_from_obj_store is True:
+            logger.info("purging datasets from object store: ")
+            p.map(delete_from_object_store, results)  # deleting objects from storage (s3, etc.)
+        else:
+            logger.info("skip purging datasets from object store. delete_from_object_store=True")
 
         dataset_purge_stats = {}
         deleted_docs_count = 0
@@ -153,6 +157,7 @@ if __name__ == "__main__":
 
     component_val = context['component']
     operation_val = context['operation']
+    delete_from_object_store_val = context.get("delete_from_object_store", True)
 
     query_obj = context['query']
     try:
@@ -160,4 +165,4 @@ if __name__ == "__main__":
     except TypeError as e:
         logger.warning(e)
 
-    purge_products(query_obj, component_val, operation_val)
+    purge_products(query_obj, component_val, operation_val, delete_from_object_store_val)
