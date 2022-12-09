@@ -1,4 +1,6 @@
 #!/bin/env python
+import traceback
+import sys
 import backoff
 from redis import BlockingConnectionPool, StrictRedis, RedisError
 
@@ -61,3 +63,20 @@ def create_info_message_files(msg=None, msg_details=None):
     if msg_details:
         with open('_alt_msg_details.txt', 'w') as f:
             f.write("%s\n" % msg_details)
+
+
+def exec_wrapper(func):
+    """Execution wrapper to dump alternate errors and tracebacks."""
+
+    def wrapper(*args, **kwargs):
+        try:
+            status = func(*args, **kwargs)
+        except (Exception, SystemExit) as e:
+            with open('_alt_error.txt', 'w') as f:
+                f.write("%s\n" % str(e))
+            with open('_alt_traceback.txt', 'w') as f:
+                f.write("%s\n" % traceback.format_exc())
+            raise
+        sys.exit(status)
+
+    return wrapper
