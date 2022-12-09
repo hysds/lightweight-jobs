@@ -20,6 +20,12 @@
       "from": "value",
       "type": "text",
       "value": "purge"
+    },
+    {
+      "name": "delete_from_object_store",
+      "from": "submitter",
+      "type": "boolean",
+      "default": "true"
     }
   ]
 }

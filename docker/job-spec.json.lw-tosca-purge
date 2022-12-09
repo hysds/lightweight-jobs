@@ -20,6 +20,10 @@
     {
       "name": "operation",
       "destination": "context"
+    },
+    {
+      "name": "delete_from_object_store",
+      "destination": "context"
     }
    ]
 }
