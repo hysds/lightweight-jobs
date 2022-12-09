@@ -8,7 +8,7 @@ from multiprocessing import Pool
 import osaka.main
 from hysds.celery import app
 from hysds.es_util import get_mozart_es, get_grq_es
-from utils import revoke, create_info_message_files, exec_wrapper
+from utils import revoke, create_info_message_files
 
 LOG_FILE_NAME = 'purge.log'
 logging.basicConfig(filename=LOG_FILE_NAME, filemode='a', level=logging.INFO)
@@ -41,7 +41,6 @@ def delete_from_object_store(es_result):
     return dataset
 
 
-@exec_wrapper
 def purge_products(query, component, operation, delete_from_obj_store=True):
     """
     Iterator used to iterate across a query result and submit jobs for every hit
