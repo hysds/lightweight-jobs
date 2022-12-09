@@ -85,7 +85,7 @@ def purge_products(query, component, operation, delete_from_obj_store=True):
             logger.info("purging datasets from object store: ")
             p.map(delete_from_object_store, results)  # deleting objects from storage (s3, etc.)
         else:
-            logger.info("skip purging datasets from object store. delete_from_object_store=True")
+            logger.info("skip purging datasets from object store. delete_from_object_store=False")
 
         dataset_purge_stats = {}
         deleted_docs_count = 0
