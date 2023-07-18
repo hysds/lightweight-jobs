@@ -35,7 +35,7 @@ def query_es(job_id):
             }
         }
     }
-    return mozart_es.search(index=STATUS_ALIAS, body=query_json)
+    return mozart_es.search(index="job_status-current", body=query_json)
 
 
 @backoff.on_exception(backoff.expo, Exception, max_tries=10, max_value=64)
