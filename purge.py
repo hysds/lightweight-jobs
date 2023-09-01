@@ -54,7 +54,7 @@ def purge_products(query, component, operation, delete_from_obj_store=True):
 
     if component == "mozart" or component == "figaro":
         es = get_mozart_es()
-        es_index = app.conf["STATUS_ALIAS"]
+        es_index = "job_status-current"
         _source = ["uuid", "payload_id"]
     else:  # "tosca"
         es = get_grq_es()
@@ -145,7 +145,7 @@ def purge_products(query, component, operation, delete_from_obj_store=True):
                 logger.info('Revoking %s\n', uuid)
                 revoke(uuid, state)
 
-            # Both associated task and job from ES
+            # Delete job from ES
             logger.info('Removing document from index %s for %s', index, payload_id)
             es.delete_by_id(index=index, id=payload_id, ignore=404)
             logger.info('Removed %s from index: %s', payload_id, index)
