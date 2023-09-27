@@ -1,4 +1,5 @@
-FROM hysds/pge-base:develop
+#FROM hysds/pge-base:develop
+FROM localhost:5050/pge-base:HC-484
 
 MAINTAINER malarout "Namrata.Malarout@jpl.nasa.gov"
 LABEL description="Lightweight System Jobs"
