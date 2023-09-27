@@ -1,4 +1,5 @@
 #FROM hysds/pge-base:develop
+# TODO: remove kluge
 FROM localhost:5050/pge-base:HC-484
 
 MAINTAINER malarout "Namrata.Malarout@jpl.nasa.gov"
