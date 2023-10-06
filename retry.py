@@ -90,7 +90,7 @@ def resubmit_jobs(context):
             index = doc["_index"]
             _id = doc["_id"]
 
-            if index.startswith("worker"):
+            if not index.startswith("job"):
                 print("Cannot retry a worker: %s" % _id)
                 continue
 
@@ -170,7 +170,7 @@ def resubmit_jobs(context):
 if __name__ == "__main__":
     ctx = read_context()
     input_type = ctx['resource']
-    if input_type == "job":
-        resubmit_jobs(ctx)
-    else:
-        print("Cannot retry a task, worker or event.")
+    # if input_type == "job":
+    resubmit_jobs(ctx)
+    # else:
+    #     print("Cannot retry a task, worker or event.")
