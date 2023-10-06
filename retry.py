@@ -173,4 +173,4 @@ if __name__ == "__main__":
     if input_type == "job":
         resubmit_jobs(ctx)
     else:
-        print("Cannot retry a worker.")
+        print("Cannot retry a task, worker or event.")
