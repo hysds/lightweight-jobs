@@ -11,7 +11,7 @@
     },
     {
       "name": "type",
-      "type": "resource",
+      "type": "text",
       "from": "dataset_jpath:_source.resource"
     },
     {
