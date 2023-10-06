@@ -10,7 +10,7 @@
       "from": "dataset_jpath:_source.job.job_info.id"
     },
     {
-      "name": "type",
+      "name": "resource",
       "type": "text",
       "from": "dataset_jpath:_source.resource"
     },
