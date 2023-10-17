@@ -10,11 +10,6 @@
       "from": "dataset_jpath:_source.job.job_info.id"
     },
     {
-      "name": "resource",
-      "type": "text",
-      "from": "dataset_jpath:_source.resource"
-    },
-    {
       "name": "retry_count_max",
       "type": "text",
       "from": "submitter",
