@@ -169,7 +169,7 @@ def resubmit_jobs(context):
 
 if __name__ == "__main__":
     ctx = read_context()
-    input_type = ctx['resource']
+    # input_type = ctx['resource']
     # if input_type == "job":
     resubmit_jobs(ctx)
     # else:
