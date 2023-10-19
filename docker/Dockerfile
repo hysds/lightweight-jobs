@@ -1,6 +1,6 @@
 # TODO: Remove kludge after testing
 # FROM hysds/pge-base:develop
-FROM pge-base:HC-484
+FROM localhost:5050/pge-base:HC-484
 
 MAINTAINER malarout "Namrata.Malarout@jpl.nasa.gov"
 LABEL description="Lightweight System Jobs"
