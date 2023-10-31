@@ -90,6 +90,10 @@ def resubmit_jobs(context):
             index = doc["_index"]
             _id = doc["_id"]
 
+            if not index.startswith("job"):
+                print("Cannot retry a worker: %s" % _id)
+                continue
+
             # don't retry a retry
             if job_json['type'].startswith('job-lw-mozart-retry'):
                 print("Cannot retry retry job %s. Skipping" % job_id)
@@ -165,9 +169,8 @@ def resubmit_jobs(context):
 
 if __name__ == "__main__":
     ctx = read_context()
-
-    input_type = ctx['type']
-    if input_type != "worker":
-        resubmit_jobs(ctx)
-    else:
-        print("Cannot retry a worker.")
+    # input_type = ctx['resource']
+    # if input_type == "job":
+    resubmit_jobs(ctx)
+    # else:
+    #     print("Cannot retry a task, worker or event.")

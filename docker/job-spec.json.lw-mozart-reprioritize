@@ -12,10 +12,6 @@
       "destination": "context"
     },
     {
-      "name": "type",
-      "destination": "context"
-    },
-    {
       "name": "retry_count_max",
       "destination": "context"
     },
