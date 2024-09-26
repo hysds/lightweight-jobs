@@ -145,18 +145,6 @@ def resubmit_jobs(context):
             # delete old job status
             delete_by_id(index, _id)
 
-            # log queued status
-            job_status_json = {
-                'uuid': new_task_id,
-                'job_id': job_id,
-                'payload_id': job_json['job_info']['job_payload']['payload_task_id'],
-                'status': 'job-queued',
-                'job': job_json
-            }
-            log_job_status(job_status_json)
-
-            # submit job
-
             # check if new queues, soft time limit, and time limit values were set
             new_job_queue = context.get("job_queue", "")
             if new_job_queue:
@@ -173,6 +161,17 @@ def resubmit_jobs(context):
                 print(f"new time limit specified. Setting new time limit to {int(new_time_limit)}")
                 job_json['job_info']['time_limit'] = int(new_time_limit)
 
+            # log queued status
+            job_status_json = {
+                'uuid': new_task_id,
+                'job_id': job_id,
+                'payload_id': job_json['job_info']['job_payload']['payload_task_id'],
+                'status': 'job-queued',
+                'job': job_json
+            }
+            log_job_status(job_status_json)
+
+            # submit job
             run_job.apply_async((job_json,), queue=job_json['job_info']['job_queue'],
                                 time_limit=job_json['job_info']['time_limit'],
                                 soft_time_limit=job_json['job_info']['soft_time_limit'],
