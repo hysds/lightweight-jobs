@@ -165,12 +165,12 @@ def resubmit_jobs(context):
 
             new_soft_time_limit = context.get("soft_time_limit", "")
             if new_soft_time_limit:
-                print(f"new soft time limit specified. Setting new soft time limit to {new_soft_time_limit}")
+                print(f"new soft time limit specified. Setting new soft time limit to {int(new_soft_time_limit)}")
                 job_json['job_info']['soft_time_limit'] = int(new_soft_time_limit)
 
             new_time_limit = context.get("time_limit", "")
             if new_time_limit:
-                print(f"new time limit specified. Setting new time limit to {new_time_limit}")
+                print(f"new time limit specified. Setting new time limit to {int(new_time_limit)}")
                 job_json['job_info']['time_limit'] = int(new_time_limit)
 
             run_job.apply_async((job_json,), queue=job_json['job_info']['job_queue'],
