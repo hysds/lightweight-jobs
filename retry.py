@@ -145,6 +145,11 @@ def resubmit_jobs(context):
             # delete old job status
             delete_by_id(index, _id)
 
+            # Before re-queueing, check to see if the job was under the job_failed index. If so, need to
+            # move it back to job_status
+            if index.startswith("job_failed"):
+                job_json['job_info']['index'] = job_json['job_info']['index'].replace("job_failed", "job_status")
+
             # log queued status
             job_status_json = {
                 'uuid': new_task_id,
