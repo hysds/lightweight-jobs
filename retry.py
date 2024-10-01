@@ -148,7 +148,8 @@ def resubmit_jobs(context):
             # Before re-queueing, check to see if the job was under the job_failed index. If so, need to
             # move it back to job_status
             if index.startswith("job_failed"):
-                job_json['job_info']['index'] = job_json['job_info']['index'].replace("job_failed", "job_status")
+                current_time = datetime.utcnow()
+                job_json['job_info']['index'] = f"job_status-{current_time.strftime('%Y.%m.%d')}"
 
             # log queued status
             job_status_json = {
