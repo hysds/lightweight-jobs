@@ -161,6 +161,12 @@ def resubmit_jobs(context):
                 print(f"new time limit specified. Setting new time limit to {int(new_time_limit)}")
                 job_json['job_info']['time_limit'] = int(new_time_limit)
 
+            # Before re-queueing, check to see if the job was under the job_failed index. If so, need to
+            # move it back to job_status
+            if index.startswith("job_failed"):
+                current_time = datetime.utcnow()
+                job_json['job_info']['index'] = f"job_status-{current_time.strftime('%Y.%m.%d')}"
+
             # log queued status
             job_status_json = {
                 'uuid': new_task_id,
