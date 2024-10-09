@@ -27,6 +27,27 @@
       ],
       "default": "0",
       "lambda": "lambda x: int(x)"
+    },
+    {
+      "name": "soft_time_limit",
+      "placeholder": "specify a new soft time limit for the job being retried",
+      "type": "number",
+      "from": "submitter",
+      "optional": true
+    },
+    {
+      "name": "time_limit",
+      "placeholder": "specify a new time limit for the job being retried",
+      "type": "number",
+      "from": "submitter",
+      "optional": true
+    },
+    {
+      "name": "job_queue",
+      "placeholder": "specify a new job queue for the job being retried",
+      "type": "text",
+      "from": "submitter",
+      "optional": true
     }
   ]
 }

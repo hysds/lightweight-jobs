@@ -18,6 +18,18 @@
     {
       "name": "job_priority_increment",
       "destination": "context"
+    },
+    {
+      "name": "soft_time_limit",
+      "destination": "context"
+    },
+    {
+      "name": "time_limit",
+      "destination": "context"
+    },
+    {
+      "name": "job_queue",
+      "destination": "context"
     }
   ]
 }

@@ -145,6 +145,22 @@ def resubmit_jobs(context):
             # delete old job status
             delete_by_id(index, _id)
 
+            # check if new queues, soft time limit, and time limit values were set
+            new_job_queue = context.get("job_queue", "")
+            if new_job_queue:
+                print(f"new job queue specified. Sending retry job to {new_job_queue}")
+                job_json['job_info']['job_queue'] = new_job_queue
+
+            new_soft_time_limit = context.get("soft_time_limit", "")
+            if new_soft_time_limit:
+                print(f"new soft time limit specified. Setting new soft time limit to {int(new_soft_time_limit)}")
+                job_json['job_info']['soft_time_limit'] = int(new_soft_time_limit)
+
+            new_time_limit = context.get("time_limit", "")
+            if new_time_limit:
+                print(f"new time limit specified. Setting new time limit to {int(new_time_limit)}")
+                job_json['job_info']['time_limit'] = int(new_time_limit)
+
             # Before re-queueing, check to see if the job was under the job_failed index. If so, need to
             # move it back to job_status
             if index.startswith("job_failed"):
@@ -162,8 +178,7 @@ def resubmit_jobs(context):
             log_job_status(job_status_json)
 
             # submit job
-            queue = job_json['job_info']['job_queue']
-            run_job.apply_async((job_json,), queue=queue,
+            run_job.apply_async((job_json,), queue=job_json['job_info']['job_queue'],
                                 time_limit=job_json['job_info']['time_limit'],
                                 soft_time_limit=job_json['job_info']['soft_time_limit'],
                                 priority=job_json['priority'],
