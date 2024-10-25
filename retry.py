@@ -15,6 +15,8 @@ from utils import revoke
 
 
 STATUS_ALIAS = app.conf["STATUS_ALIAS"]
+JOB_STATUS_CURRENT = "job_status-current"
+
 mozart_es = get_mozart_es()
 
 
@@ -35,7 +37,7 @@ def query_es(job_id):
             }
         }
     }
-    return mozart_es.search(index="job_status-current", body=query_json)
+    return mozart_es.search(index=JOB_STATUS_CURRENT, body=query_json)
 
 
 @backoff.on_exception(backoff.expo, Exception, max_tries=10, max_value=64)
@@ -142,8 +144,12 @@ def resubmit_jobs(context):
             new_task_id = uuid()
             job_json['task_id'] = new_task_id
 
-            # delete old job status
-            delete_by_id(index, _id)
+            # delete old job status; we should pass in the job_status-current alias
+            # instead so that we make sure to properly handle the scenario where
+            # figaro rules are in place to auto retry jobs that fail due to spot termination.
+            # This may potentially cause duplicate records across the job_status
+            # and job_failed indices
+            delete_by_id(JOB_STATUS_CURRENT, _id)
 
             # check if new queues, soft time limit, and time limit values were set
             new_job_queue = context.get("job_queue", "")
