@@ -57,8 +57,8 @@ def ensure_job_indexed(id, status):
         "query": {
             "bool": {
                 "must": [
-                    {"term": {"payload_id.keyword": id}},
-                    {"term": {"status.keyword": status}}
+                    {"match": {"payload_id": id}},
+                    {"match": {"status": status}}
                 ]
             }
         }
