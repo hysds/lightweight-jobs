@@ -4,6 +4,13 @@ MAINTAINER malarout "Namrata.Malarout@jpl.nasa.gov"
 LABEL description="Lightweight System Jobs"
 
 # provision lightweight-jobs PGE
+
+# softlink /home/ops
+RUN ln -s /root /home/ops
+
+# Make sure $HOME is set when we run this container
+ENV HOME=/home/ops
+
 USER ops
 COPY . /home/ops/lightweight-jobs
 
