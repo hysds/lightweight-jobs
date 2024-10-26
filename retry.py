@@ -49,7 +49,7 @@ def query_es(job_id):
 
 
 @backoff.on_exception(
-    backoff.expo, Exception, max_tries=4, max_value=16
+    backoff.expo, Exception, max_tries=6, max_value=16
 )
 def ensure_job_indexed(id, status):
     """Ensure job is indexed."""
@@ -57,8 +57,8 @@ def ensure_job_indexed(id, status):
         "query": {
             "bool": {
                 "must": [
-                    {"match": {"payload_id": id}},
-                    {"match": {"status": status}}
+                    {"term": {"payload_id": id}},
+                    {"term": {"status": status}}
                 ]
             }
         }
