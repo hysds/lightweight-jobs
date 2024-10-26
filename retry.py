@@ -42,8 +42,10 @@ def query_es(job_id):
 
 @backoff.on_exception(backoff.expo, Exception, max_tries=10, max_value=64)
 def delete_by_id(index, _id):
-    mozart_es.delete_by_id(index=index, id=_id)
-
+    results = mozart_es.search_by_id(index=index, id=_id, return_all=True)
+    for result in results:
+        print(f"Deleting job {result['_id']} in {result['_index']}")
+        mozart_es.delete_by_id(index=result['_index'], id=result['_id'])
 
 def get_new_job_priority(old_priority, increment_by, new_priority):
     if increment_by is not None:
