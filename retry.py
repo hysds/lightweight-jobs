@@ -60,7 +60,7 @@ def ensure_job_indexed(id, status):
     print("ensure_job_indexed: %s" % json.dumps(query_json))
     count = mozart_es.get_count(index=JOB_STATUS_CURRENT, body=query_json)
     if count == 0:
-        raise RuntimeError(f"Failed to find indexed job with job_id={job_id} and status={status}")
+        raise RuntimeError(f"Failed to find indexed job with payload_id={id} and status={status}")
 
 
 @backoff.on_exception(backoff.expo, Exception, max_tries=10, max_value=64)
