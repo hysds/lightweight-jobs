@@ -11,7 +11,7 @@ from celery import uuid
 from hysds.celery import app
 from hysds.es_util import get_mozart_es
 from hysds.orchestrator import run_job
-from hysds.log_utils import log_job_status, logger
+from hysds.log_utils import log_job_status
 
 from utils import revoke
 
@@ -57,7 +57,7 @@ def ensure_job_indexed(job_id, status):
             }
         }
     }
-    logger.info("ensure_job_indexed: %s" % json.dumps(query_json))
+    print("ensure_job_indexed: %s" % json.dumps(query_json))
     count = mozart_es.get_count(index=JOB_STATUS_CURRENT, body=query_json)
     if count == 0:
         raise RuntimeError(f"Failed to find indexed job with job_id={job_id} and status={status}")
@@ -67,7 +67,7 @@ def ensure_job_indexed(job_id, status):
 def delete_by_id(index, _id):
     results = mozart_es.search_by_id(index=index, id=_id, return_all=True)
     for result in results:
-        logger.info(f"Deleting job {result['_id']} in {result['_index']}")
+        print(f"Deleting job {result['_id']} in {result['_index']}")
         mozart_es.delete_by_id(index=result['_index'], id=result['_id'])
 
 
@@ -75,8 +75,8 @@ def get_new_job_priority(old_priority, increment_by, new_priority):
     if increment_by is not None:
         priority = int(old_priority) + int(increment_by)
         if priority == 0 or priority == 9:
-            logger.info("Not applying {} on previous priority of {}")
-            logger.info("Priority must be between 0 and 8".format(increment_by, old_priority))
+            print("Not applying {} on previous priority of {}")
+            print("Priority must be between 0 and 8".format(increment_by, old_priority))
             priority = int(old_priority)
     else:
         priority = int(new_priority)
@@ -105,11 +105,11 @@ def resubmit_jobs(context):
         retry_job_ids = [context['retry_job_id']]
 
     for job_id in retry_job_ids:
-        logger.info("Validating retry job: {}".format(job_id))
+        print("Validating retry job: {}".format(job_id))
         try:
             doc = query_es(job_id)
             if doc['hits']['total']['value'] == 0:
-                logger.warning('job id %s not found in Elasticsearch. Continuing.' % job_id)
+                print('job id %s not found in Elasticsearch. Continuing.' % job_id)
                 continue
             doc = doc["hits"]["hits"][0]
 
@@ -119,12 +119,12 @@ def resubmit_jobs(context):
             _id = doc["_id"]
 
             if not index.startswith("job"):
-                logger.error("Cannot retry a worker: %s" % _id)
+                print("Cannot retry a worker: %s" % _id)
                 continue
 
             # don't retry a retry
             if job_json['type'].startswith('job-lw-mozart-retry'):
-                logger.warning("Cannot retry retry job %s. Skipping" % job_id)
+                print("Cannot retry retry job %s. Skipping" % job_id)
                 continue
 
             # check retry_remaining_count
@@ -132,8 +132,8 @@ def resubmit_jobs(context):
                 if job_json['retry_count'] < retry_count_max:
                     job_json['retry_count'] = int(job_json['retry_count']) + 1
                 else:
-                    logger.error("For job {}, retry_count now is {}, retry_count_max limit of {} reached. Cannot retry again."
-                                 .format(job_id, job_json['retry_count'], retry_count_max))
+                    print("For job {}, retry_count now is {}, retry_count_max limit of {} reached. Cannot retry again."
+                          .format(job_id, job_json['retry_count'], retry_count_max))
                     continue
             else:
                 job_json['retry_count'] = 1
@@ -161,13 +161,13 @@ def resubmit_jobs(context):
             job_id = job_json['job_id']
             try:
                 revoke(task_id, state)
-                logger.info("revoked original job: %s (%s)" % (job_id, task_id))
+                print("revoked original job: %s (%s)" % (job_id, task_id))
                 time.sleep(7)  # sleep 7 seconds to allow ES documents to be indexed
                 # wait for confirmation of job-revoked
                 ensure_job_indexed(job_id, status="job-revoked")
             except:
-                logger.warning("Got error issuing revoke on job %s (%s): %s" % (job_id, task_id, traceback.format_exc()))
-                logger.warning("Continuing.")
+                print("Got error issuing revoke on job %s (%s): %s" % (job_id, task_id, traceback.format_exc()))
+                print("Continuing.")
 
             # generate celery task id
             new_task_id = uuid()
@@ -183,17 +183,17 @@ def resubmit_jobs(context):
             # check if new queues, soft time limit, and time limit values were set
             new_job_queue = context.get("job_queue", "")
             if new_job_queue:
-                logger.info(f"new job queue specified. Sending retry job to {new_job_queue}")
+                print(f"new job queue specified. Sending retry job to {new_job_queue}")
                 job_json['job_info']['job_queue'] = new_job_queue
 
             new_soft_time_limit = context.get("soft_time_limit", "")
             if new_soft_time_limit:
-                logger.info(f"new soft time limit specified. Setting new soft time limit to {int(new_soft_time_limit)}")
+                print(f"new soft time limit specified. Setting new soft time limit to {int(new_soft_time_limit)}")
                 job_json['job_info']['soft_time_limit'] = int(new_soft_time_limit)
 
             new_time_limit = context.get("time_limit", "")
             if new_time_limit:
-                logger.info(f"new time limit specified. Setting new time limit to {int(new_time_limit)}")
+                print(f"new time limit specified. Setting new time limit to {int(new_time_limit)}")
                 job_json['job_info']['time_limit'] = int(new_time_limit)
 
             # Before re-queueing, check to see if the job was under the job_failed index. If so, need to
@@ -218,9 +218,9 @@ def resubmit_jobs(context):
                                 soft_time_limit=job_json['job_info']['soft_time_limit'],
                                 priority=job_json['priority'],
                                 task_id=new_task_id)
-            logger.info(f"re-submitted job: ")
+            print(f"re-submitted job: ")
         except Exception as ex:
-            logger.error("[ERROR] Exception occurred {0}:{1} {2}".format(type(ex), ex, traceback.format_exc()),
+            print("[ERROR] Exception occurred {0}:{1} {2}".format(type(ex), ex, traceback.format_exc()),
                   file=sys.stderr)
 
 
