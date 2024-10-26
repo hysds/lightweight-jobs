@@ -218,7 +218,7 @@ def resubmit_jobs(context):
                                 soft_time_limit=job_json['job_info']['soft_time_limit'],
                                 priority=job_json['priority'],
                                 task_id=new_task_id)
-            print(f"re-submitted job: ")
+            print(f"re-submitted job_id={job_id}, task_id={new_task_id}")
         except Exception as ex:
             print("[ERROR] Exception occurred {0}:{1} {2}".format(type(ex), ex, traceback.format_exc()),
                   file=sys.stderr)
