@@ -20,7 +20,7 @@ from utils import revoke
 STATUS_ALIAS = app.conf["STATUS_ALIAS"]
 JOB_STATUS_CURRENT = "job_status-current"
 
-LOG_FILE_NAME = 'purge.log'
+LOG_FILE_NAME = 'retry.log'
 log_format = "[%(asctime)s: %(levelname)s/%(funcName)s] %(message)s"
 logging.basicConfig(format=log_format, filename=LOG_FILE_NAME, filemode='a', level=logging.INFO)
 logger = logging
