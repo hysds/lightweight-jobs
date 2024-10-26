@@ -3,6 +3,8 @@ import sys
 import json
 import traceback
 import backoff
+import time
+
 from datetime import datetime
 from celery import uuid
 
@@ -27,7 +29,7 @@ def read_context():
 
 
 @backoff.on_exception(backoff.expo, Exception, max_tries=10, max_value=64)
-def query_es(job_id, status=None):
+def query_es(job_id):
     query_json = {
         "query": {
             "bool": {
@@ -37,19 +39,37 @@ def query_es(job_id, status=None):
             }
         }
     }
-    if status:
-        query_json["query"]["bool"]["must"].append(
-            {"term": {"status.keyword": status}}
-        )
     return mozart_es.search(index=JOB_STATUS_CURRENT, body=query_json)
+
+
+@backoff.on_exception(
+    backoff.expo, Exception, max_tries=10, max_value=64
+)
+def ensure_job_indexed(job_id, status):
+    """Ensure job is indexed."""
+    query_json = {
+        "query": {
+            "bool": {
+                "must": [
+                    {"term": {"job.job_info.id": job_id}},
+                    {"term": {"status.keyword": status}}
+                ]
+            }
+        }
+    }
+    logger.info("ensure_job_indexed: %s" % json.dumps(query_json))
+    count = mozart_es.get_count(index=JOB_STATUS_CURRENT, body=query_json)
+    if count == 0:
+        raise RuntimeError(f"Failed to find indexed job with job_id={job_id} and status={status}")
 
 
 @backoff.on_exception(backoff.expo, Exception, max_tries=10, max_value=64)
 def delete_by_id(index, _id):
     results = mozart_es.search_by_id(index=index, id=_id, return_all=True)
     for result in results:
-        print(f"Deleting job {result['_id']} in {result['_index']}")
+        logger.info(f"Deleting job {result['_id']} in {result['_index']}")
         mozart_es.delete_by_id(index=result['_index'], id=result['_id'])
+
 
 def get_new_job_priority(old_priority, increment_by, new_priority):
     if increment_by is not None:
@@ -85,7 +105,7 @@ def resubmit_jobs(context):
         retry_job_ids = [context['retry_job_id']]
 
     for job_id in retry_job_ids:
-        print(("Validating retry job: {}".format(job_id)))
+        logger.info("Validating retry job: {}".format(job_id))
         try:
             doc = query_es(job_id)
             if doc['hits']['total']['value'] == 0:
@@ -112,8 +132,8 @@ def resubmit_jobs(context):
                 if job_json['retry_count'] < retry_count_max:
                     job_json['retry_count'] = int(job_json['retry_count']) + 1
                 else:
-                    print("For job {}, retry_count now is {}, retry_count_max limit of {} reached. Cannot retry again."
-                          .format(job_id, job_json['retry_count'], retry_count_max))
+                    logger.error("For job {}, retry_count now is {}, retry_count_max limit of {} reached. Cannot retry again."
+                                 .format(job_id, job_json['retry_count'], retry_count_max))
                     continue
             else:
                 job_json['retry_count'] = 1
@@ -142,8 +162,9 @@ def resubmit_jobs(context):
             try:
                 revoke(task_id, state)
                 logger.info("revoked original job: %s (%s)" % (job_id, task_id))
+                time.sleep(7)  # sleep 7 seconds to allow ES documents to be indexed
                 # wait for confirmation of job-revoked
-                query_es(job_id, status="job-revoked")
+                ensure_job_indexed(job_id, status="job-revoked")
             except:
                 logger.warning("Got error issuing revoke on job %s (%s): %s" % (job_id, task_id, traceback.format_exc()))
                 logger.warning("Continuing.")
