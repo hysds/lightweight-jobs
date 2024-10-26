@@ -21,7 +21,8 @@ STATUS_ALIAS = app.conf["STATUS_ALIAS"]
 JOB_STATUS_CURRENT = "job_status-current"
 
 LOG_FILE_NAME = 'purge.log'
-logging.basicConfig(filename=LOG_FILE_NAME, filemode='a', level=logging.INFO)
+log_format = "[%(asctime)s: %(levelname)s/%(funcName)s] %(message)s"
+logging.basicConfig(format=log_format, filename=LOG_FILE_NAME, filemode='a', level=logging.INFO)
 logger = logging
 
 mozart_es = get_mozart_es()
@@ -48,7 +49,7 @@ def query_es(job_id):
 
 
 @backoff.on_exception(
-    backoff.expo, Exception, max_tries=3, max_value=10
+    backoff.expo, Exception, max_tries=4, max_value=16
 )
 def ensure_job_indexed(id, status):
     """Ensure job is indexed."""
