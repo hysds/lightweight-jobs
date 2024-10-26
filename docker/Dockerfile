@@ -5,6 +5,9 @@ LABEL description="Lightweight System Jobs"
 
 # provision lightweight-jobs PGE
 
+# create ops user and group
+RUN useradd -M -u 10005 ops
+
 # softlink /home/ops
 RUN ln -s /root /home/ops
 
