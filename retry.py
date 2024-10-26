@@ -45,13 +45,13 @@ def query_es(job_id):
 @backoff.on_exception(
     backoff.expo, Exception, max_tries=10, max_value=64
 )
-def ensure_job_indexed(job_id, status):
+def ensure_job_indexed(id, status):
     """Ensure job is indexed."""
     query_json = {
         "query": {
             "bool": {
                 "must": [
-                    {"term": {"job.job_info.id": job_id}},
+                    {"term": {"payload_id.keyword": id}},
                     {"term": {"status.keyword": status}}
                 ]
             }
@@ -164,7 +164,7 @@ def resubmit_jobs(context):
                 print("revoked original job: %s (%s)" % (job_id, task_id))
                 time.sleep(7)  # sleep 7 seconds to allow ES documents to be indexed
                 # wait for confirmation of job-revoked
-                ensure_job_indexed(job_id, status="job-revoked")
+                ensure_job_indexed(_id, status="job-revoked")
             except:
                 print("Got error issuing revoke on job %s (%s): %s" % (job_id, task_id, traceback.format_exc()))
                 print("Continuing.")
@@ -218,7 +218,7 @@ def resubmit_jobs(context):
                                 soft_time_limit=job_json['job_info']['soft_time_limit'],
                                 priority=job_json['priority'],
                                 task_id=new_task_id)
-            print(f"re-submitted job_id={job_id}, task_id={new_task_id}")
+            print(f"re-submitted job_id={job_id}, payload_id={job_status_json['payload_id']}, task_id={new_task_id}")
         except Exception as ex:
             print("[ERROR] Exception occurred {0}:{1} {2}".format(type(ex), ex, traceback.format_exc()),
                   file=sys.stderr)
