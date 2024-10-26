@@ -43,7 +43,7 @@ def query_es(job_id):
 
 
 @backoff.on_exception(
-    backoff.expo, Exception, max_tries=10, max_value=64
+    backoff.expo, Exception, max_tries=3, max_value=10
 )
 def ensure_job_indexed(id, status):
     """Ensure job is indexed."""
@@ -161,7 +161,7 @@ def resubmit_jobs(context):
             job_id = job_json['job_id']
             try:
                 revoke(task_id, state)
-                print("revoked original job: %s (%s)" % (job_id, task_id))
+                print("revoked original job: %s (%s) state=%s" % (job_id, task_id, state))
                 time.sleep(7)  # sleep 7 seconds to allow ES documents to be indexed
                 # wait for confirmation of job-revoked
                 ensure_job_indexed(_id, status="job-revoked")
