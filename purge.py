@@ -162,8 +162,7 @@ if __name__ == "__main__":
 
     query_obj = context['query']
     try:
-        if isinstance(query_obj, str):
-            query_obj = json.loads(query_obj)
+        query_obj = json.loads(query_obj)
     except TypeError as e:
         logger.warning(e)
 
