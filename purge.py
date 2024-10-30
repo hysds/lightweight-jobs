@@ -12,14 +12,15 @@ from hysds.es_util import get_mozart_es, get_grq_es
 from utils import revoke, create_info_message_files
 
 LOG_FILE_NAME = 'purge.log'
-logging.basicConfig(filename=LOG_FILE_NAME, filemode='a', level=logging.INFO)
+log_format = "[%(asctime)s: %(levelname)s/%(funcName)s] %(message)s"
+logging.basicConfig(format=log_format, filename=LOG_FILE_NAME, filemode='a', level=logging.INFO)
 logger = logging
 
 tosca_es = get_grq_es()
 mozart_es = get_mozart_es()
 
 @backoff.on_exception(
-    backoff.expo, Exception, max_tries=6, max_value=16
+    backoff.expo, Exception, max_tries=4, max_value=16
 )
 def ensure_job_indexed(id, status):
     """Ensure job is indexed."""
@@ -156,7 +157,10 @@ def purge_products(query, component, operation, delete_from_obj_store=True):
                     logger.info('Revoking %s\n', uuid)
                     revoke(uuid, state)
                     # wait for confirmation of job-revoked
-                    ensure_job_indexed(payload_id, status="job-revoked")
+                    try:
+                        ensure_job_indexed(payload_id, status="job-revoked")
+                    except RuntimeError as re:
+                        logger.warning(str(re))
                 else:
                     logger.info('Cannot remove active job %s\n', uuid)
                 continue
@@ -169,7 +173,10 @@ def purge_products(query, component, operation, delete_from_obj_store=True):
                 logger.info('Revoking %s\n', uuid)
                 revoke(uuid, state)
                 # wait for confirmation of job-revoked
-                ensure_job_indexed(payload_id, status="job-revoked")
+                try:
+                    ensure_job_indexed(payload_id, status="job-revoked")
+                except RuntimeError as re:
+                    logger.warning(str(re))
 
             # Delete job(s) from ES
             results = es.search_by_id(index=index, id=payload_id, return_all=True, ignore=404)
