@@ -1,7 +1,6 @@
 #!/bin/env python
 import json
 import logging
-import backoff
 
 import psutil
 from multiprocessing import Pool
@@ -18,26 +17,6 @@ logger = logging
 
 tosca_es = get_grq_es()
 mozart_es = get_mozart_es()
-
-@backoff.on_exception(
-    backoff.expo, Exception, max_tries=4, max_value=16
-)
-def ensure_job_indexed(id, status):
-    """Ensure job is indexed."""
-    query_json = {
-        "query": {
-            "bool": {
-                "must": [
-                    {"term": {"payload_id": id}},
-                    {"term": {"status": status}}
-                ]
-            }
-        }
-    }
-    logger.info("ensure_job_indexed: %s" % json.dumps(query_json))
-    count = mozart_es.get_count(index="job_status-current", body=query_json)
-    if count == 0:
-        raise RuntimeError(f"Failed to find indexed job with payload_id={id} and status={status}")
 
 
 def read_context():
@@ -156,11 +135,6 @@ def purge_products(query, component, operation, delete_from_obj_store=True):
                 if not purge:
                     logger.info('Revoking %s\n', uuid)
                     revoke(uuid, state)
-                    # wait for confirmation of job-revoked
-                    try:
-                        ensure_job_indexed(payload_id, status="job-revoked")
-                    except RuntimeError as re:
-                        logger.warning(str(re))
                 else:
                     logger.info('Cannot remove active job %s\n', uuid)
                 continue
@@ -172,11 +146,6 @@ def purge_products(query, component, operation, delete_from_obj_store=True):
             if state == "PENDING":
                 logger.info('Revoking %s\n', uuid)
                 revoke(uuid, state)
-                # wait for confirmation of job-revoked
-                try:
-                    ensure_job_indexed(payload_id, status="job-revoked")
-                except RuntimeError as re:
-                    logger.warning(str(re))
 
             # Delete job(s) from ES
             results = es.search_by_id(index=index, id=payload_id, return_all=True, ignore=404)

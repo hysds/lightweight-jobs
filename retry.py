@@ -3,7 +3,6 @@ import sys
 import json
 import traceback
 import backoff
-import time
 import logging
 
 from datetime import datetime
@@ -46,27 +45,6 @@ def query_es(job_id):
         }
     }
     return mozart_es.search(index=JOB_STATUS_CURRENT, body=query_json)
-
-
-@backoff.on_exception(
-    backoff.expo, Exception, max_tries=6, max_value=16
-)
-def ensure_job_indexed(id, status):
-    """Ensure job is indexed."""
-    query_json = {
-        "query": {
-            "bool": {
-                "must": [
-                    {"term": {"payload_id": id}},
-                    {"term": {"status": status}}
-                ]
-            }
-        }
-    }
-    logger.info("ensure_job_indexed: %s" % json.dumps(query_json))
-    count = mozart_es.get_count(index=JOB_STATUS_CURRENT, body=query_json)
-    if count == 0:
-        raise RuntimeError(f"Failed to find indexed job with payload_id={id} and status={status}")
 
 
 @backoff.on_exception(backoff.expo, Exception, max_tries=10, max_value=64)
@@ -168,9 +146,6 @@ def resubmit_jobs(context):
             try:
                 revoke(task_id, state)
                 logger.info("revoked original job: %s (%s) state=%s" % (job_id, task_id, state))
-                time.sleep(7)  # sleep 7 seconds to allow ES documents to be indexed
-                # wait for confirmation of job-revoked
-                ensure_job_indexed(_id, status="job-revoked")
             except:
                 logger.error("Got error issuing revoke on job %s (%s): %s" % (job_id, task_id, traceback.format_exc()))
                 logger.error("Continuing.")
