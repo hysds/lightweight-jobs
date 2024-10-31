@@ -11,10 +11,12 @@ from hysds.es_util import get_mozart_es, get_grq_es
 from utils import revoke, create_info_message_files
 
 LOG_FILE_NAME = 'purge.log'
-logging.basicConfig(filename=LOG_FILE_NAME, filemode='a', level=logging.INFO)
+log_format = "[%(asctime)s: %(levelname)s/%(funcName)s] %(message)s"
+logging.basicConfig(format=log_format, filename=LOG_FILE_NAME, filemode='a', level=logging.INFO)
 logger = logging
 
 tosca_es = get_grq_es()
+mozart_es = get_mozart_es()
 
 
 def read_context():
@@ -145,10 +147,12 @@ def purge_products(query, component, operation, delete_from_obj_store=True):
                 logger.info('Revoking %s\n', uuid)
                 revoke(uuid, state)
 
-            # Delete job from ES
-            logger.info('Removing document from index %s for %s', index, payload_id)
-            es.delete_by_id(index=index, id=payload_id, ignore=404)
-            logger.info('Removed %s from index: %s', payload_id, index)
+            # Delete job(s) from ES
+            results = es.search_by_id(index=index, id=payload_id, return_all=True, ignore=404)
+            for result in results:
+                logger.info('Removing document from index %s for %s', result['_id'], result['_index'])
+                es.delete_by_id(index=result['_index'], id=result['_id'])
+                logger.info('Removed %s from index: %s', result['_id'], result['_index'])
         logger.info('Finished.')
 
 
