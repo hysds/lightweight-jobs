@@ -151,7 +151,7 @@ def purge_products(query, component, operation, delete_from_obj_store=True):
             results = es.search_by_id(index=index, id=payload_id, return_all=True, ignore=404)
             for result in results:
                 logger.info('Removing document from index %s for %s', result['_id'], result['_index'])
-                es.delete_by_id(index=result['_index'], id=result['_id'])
+                es.delete_by_id(index=result['_index'], id=result['_id'], ignore=404)
                 logger.info('Removed %s from index: %s', result['_id'], result['_index'])
         logger.info('Finished.')
 
