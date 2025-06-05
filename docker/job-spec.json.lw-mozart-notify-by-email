@@ -4,6 +4,9 @@
   "disk_usage":"3GB",
   "soft_time_limit": 86400,
   "time_limit": 86700,
+  "imported_worker_files": {
+    "$HOME/.netrc-os": "/home/ops/.netrc-os"
+  },
   "params" : [
     {
       "name": "id",
