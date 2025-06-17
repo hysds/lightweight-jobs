@@ -27,9 +27,9 @@ def wget_script(dataset=None, glob_dict=None):
     """Return AWS get script."""
     grq_es = get_grq_es()
     index = app.conf["DATASET_ALIAS"]
-    logger.debug("Dataset: {}".format(json.dumps(dataset, indent=2)))
+    logger.debug(f"Dataset: {json.dumps(dataset, indent=2)}")
     paged_result = grq_es.es.search(body=dataset, index=index, size=100, scroll="10m")
-    logger.debug("Paged Result: {}".format(json.dumps(paged_result, indent=2)))
+    logger.debug(f"Paged Result: {json.dumps(paged_result, indent=2)}")
 
     scroll_ids = set()
     count = paged_result["hits"]["total"]["value"]
@@ -90,7 +90,7 @@ def wget_script(dataset=None, glob_dict=None):
                     break
 
             paged_result = grq_es.es.scroll(scroll_id=scroll_id, scroll="10m")
-            logger.debug("paged result: {}".format(json.dumps(paged_result, indent=2)))
+            logger.debug(f"paged result: {json.dumps(paged_result, indent=2)}")
             scroll_id = paged_result['_scroll_id']
             scroll_ids.add(scroll_id)
 
@@ -160,12 +160,12 @@ def make_product(rule_name, query):
     '''
     Make a product out of this WGET script
     '''
-    with open("_context.json", "r") as fp:
+    with open("_context.json") as fp:
         context = json.load(fp)
         name = PRODUCT_TEMPLATE.format(rule_name, context["username"],
                                        datetime.datetime.now().strftime("%Y%m%dT%H%M%S"))
     os.mkdir(name)
-    os.rename("wget_script.sh", "{0}/wget_script.bash".format(name))
+    os.rename("wget_script.sh", f"{name}/wget_script.bash")
     with open("{0}/{0}.met.json".format(name), "w") as fp:
         json.dump({"source_query": json.dumps(query)}, fp)
     with open("{0}/{0}.dataset.json".format(name), "w") as fp:
@@ -216,10 +216,10 @@ if __name__ == "__main__":
     # get the glob
     try:
         context_file = '_context.json'
-        with open(context_file, 'r') as fin:
+        with open(context_file) as fin:
             context = json.load(fin)
     except Exception as e:
-        raise Exception('unable to parse _context.json from work directory: {}'.format(str(e)))
+        raise Exception(f'unable to parse _context.json from work directory: {str(e)}')
 
     glob_dict = None
     if "include_glob" in context and "exclude_glob" in context:
