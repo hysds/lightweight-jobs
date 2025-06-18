@@ -5,13 +5,14 @@ import traceback
 import backoff
 import logging
 
-from datetime import datetime
+from datetime import datetime, UTC
 from celery import uuid
 
 from hysds.celery import app
 from hysds.es_util import get_mozart_es
 from hysds.orchestrator import run_job
 from hysds.log_utils import log_job_status
+from hysds.utils import datetime_iso_naive
 
 from utils import revoke
 
@@ -130,7 +131,7 @@ def resubmit_jobs(context):
                     del job_json['job_info'][i]
 
             # set queue time
-            job_json['job_info']['time_queued'] = datetime.utcnow().isoformat() + 'Z'
+            job_json['job_info']['time_queued'] = datetime_iso_naive() + 'Z'
 
             # reset priority
             old_priority = job_json['priority']
@@ -180,7 +181,7 @@ def resubmit_jobs(context):
             # Before re-queueing, check to see if the job was under the job_failed index. If so, need to
             # move it back to job_status
             if index.startswith("job_failed"):
-                current_time = datetime.utcnow()
+                current_time = datetime.now(UTC)
                 job_json['job_info']['index'] = f"job_status-{current_time.strftime('%Y.%m.%d')}"
 
             # log queued status
