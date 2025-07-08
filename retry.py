@@ -5,7 +5,7 @@ import traceback
 import backoff
 import logging
 
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from celery import uuid
 
 from hysds.celery import app
@@ -181,7 +181,7 @@ def resubmit_jobs(context):
             # Before re-queueing, check to see if the job was under the job_failed index. If so, need to
             # move it back to job_status
             if index.startswith("job_failed"):
-                current_time = datetime.now(UTC)
+                current_time = datetime.now(timezone.utc)
                 job_json['job_info']['index'] = f"job_status-{current_time.strftime('%Y.%m.%d')}"
 
             # log queued status
