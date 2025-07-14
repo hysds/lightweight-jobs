@@ -18,9 +18,9 @@ def aws_get_script(dataset=None):
     """Return AWS get script."""
     grq_es = get_grq_es()
     index = app.conf["DATASET_ALIAS"]
-    logger.debug("Dataset: {}".format(json.dumps(dataset, indent=2)))
+    logger.debug(f"Dataset: {json.dumps(dataset, indent=2)}")
     paged_result = grq_es.es.search(body=dataset, index=index, size=10, scroll="10m")
-    logger.debug("Paged Result: {}".format(json.dumps(paged_result, indent=2)))
+    logger.debug(f"Paged Result: {json.dumps(paged_result, indent=2)}")
 
     scroll_ids = set()
     count = paged_result["hits"]["total"]["value"]
