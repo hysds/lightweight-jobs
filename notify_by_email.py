@@ -20,7 +20,7 @@ from hysds_commons.net_utils import get_container_host_ip
 
 
 def read_context():
-    with open("_context.json", "r") as f:
+    with open("_context.json") as f:
         cxt = json.load(f)
         return cxt
 
@@ -138,7 +138,7 @@ def get_cities(src):
 
     cities = []
     for city in src.get("city", []):
-        cities.append("%s, %s" % (city.get("name", ""), city.get("admin1_name", "")))
+        cities.append("{}, {}".format(city.get("name", ""), city.get("admin1_name", "")))
     return cities
 
 
@@ -163,7 +163,7 @@ def get_metadata_snippet(src, snippet_cfg):
     for k, label in snippet_cfg:
         val = get_value(src, k)
         if val is not None:
-            body += "%s: %s\n" % (label, val)
+            body += "{}: {}\n".format(label, val)
     body += "location type: %s\n" % src.get("location", {}).get("type", None)
     body += "location coordinates: %s\n" % src.get("location", {}).get(
         "coordinates", []
@@ -194,7 +194,7 @@ def get_facetview_link(link, _id, version=None):
     else:
         query_string = 'query_string="' + term + '%3A%5C"' + _id + '%5C""&system_version="' + version + '"'
     print(_id)
-    return "%s/?%s" % (link, query_string)
+    return "{}/?{}".format(link, query_string)
 
 
 if __name__ == "__main__":
@@ -224,7 +224,7 @@ if __name__ == "__main__":
 
     cc_recipients = [i.strip() for i in emails.split(",")]
     bcc_recipients = []
-    email_subject = "[monitor] (notify_by_email:%s) %s" % (rule_name, object_id)
+    email_subject = "[monitor] (notify_by_email:{}) {}".format(rule_name, object_id)
     email_body = "Product with id %s was ingested." % object_id
     email_attachments = None
 
@@ -276,7 +276,7 @@ if __name__ == "__main__":
         )
         email_body += "browser's address bar to prevent your email client from escaping the curly brackets."
 
-    username_email = "%s@%s" % (getpass.getuser(), get_hostname())
+    username_email = "{}@{}".format(getpass.getuser(), get_hostname())
     send_email(
         username_email,
         cc_recipients,

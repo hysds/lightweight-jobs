@@ -20,7 +20,7 @@ mozart_es = get_mozart_es()
 
 
 def read_context():
-    with open('_context.json', 'r') as f:
+    with open('_context.json') as f:
         cxt = json.load(f)
         return cxt
 
@@ -110,7 +110,7 @@ def purge_products(query, component, operation, delete_from_obj_store=True):
             if deleted_docs_count > 0:
                 msg_details += "Datasets purged from ES:\n"
                 for k, v in dataset_purge_stats.items():
-                    msg_details += "{} - {}\n".format(k, v)
+                    msg_details += f"{k} - {v}\n"
             if len(failed_deletions) > 0:
                 msg_details += "\n\n"
                 msg_details += "Datasets failed to purge from ES:\n"

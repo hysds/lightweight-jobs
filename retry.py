@@ -5,13 +5,14 @@ import traceback
 import backoff
 import logging
 
-from datetime import datetime
+from datetime import datetime, timezone
 from celery import uuid
 
 from hysds.celery import app
 from hysds.es_util import get_mozart_es
 from hysds.orchestrator import run_job
 from hysds.log_utils import log_job_status
+from hysds.utils import datetime_iso_naive
 
 from utils import revoke
 
@@ -28,7 +29,7 @@ mozart_es = get_mozart_es()
 
 
 def read_context():
-    with open('_context.json', 'r') as f:
+    with open('_context.json') as f:
         cxt = json.load(f)
         return cxt
 
@@ -60,7 +61,7 @@ def get_new_job_priority(old_priority, increment_by, new_priority):
         priority = int(old_priority) + int(increment_by)
         if priority == 0 or priority == 9:
             logger.info("Not applying {} on previous priority of {}")
-            logger.info("Priority must be between 0 and 8".format(increment_by, old_priority))
+            logger.info(f"Priority must be between 0 and 8")
             priority = int(old_priority)
     else:
         priority = int(new_priority)
@@ -89,7 +90,7 @@ def resubmit_jobs(context):
         retry_job_ids = [context['retry_job_id']]
 
     for job_id in retry_job_ids:
-        logger.info("Validating retry job: {}".format(job_id))
+        logger.info(f"Validating retry job: {job_id}")
         try:
             doc = query_es(job_id)
             if doc['hits']['total']['value'] == 0:
@@ -130,7 +131,7 @@ def resubmit_jobs(context):
                     del job_json['job_info'][i]
 
             # set queue time
-            job_json['job_info']['time_queued'] = datetime.utcnow().isoformat() + 'Z'
+            job_json['job_info']['time_queued'] = datetime_iso_naive() + 'Z'
 
             # reset priority
             old_priority = job_json['priority']
@@ -145,9 +146,9 @@ def resubmit_jobs(context):
             job_id = job_json['job_id']
             try:
                 revoke(task_id, state)
-                logger.info("revoked original job: %s (%s) state=%s" % (job_id, task_id, state))
+                logger.info("revoked original job: {} ({}) state={}".format(job_id, task_id, state))
             except:
-                logger.error("Got error issuing revoke on job %s (%s): %s" % (job_id, task_id, traceback.format_exc()))
+                logger.error("Got error issuing revoke on job {} ({}): {}".format(job_id, task_id, traceback.format_exc()))
                 logger.error("Continuing.")
 
             # generate celery task id
@@ -180,7 +181,7 @@ def resubmit_jobs(context):
             # Before re-queueing, check to see if the job was under the job_failed index. If so, need to
             # move it back to job_status
             if index.startswith("job_failed"):
-                current_time = datetime.utcnow()
+                current_time = datetime.now(timezone.utc)
                 job_json['job_info']['index'] = f"job_status-{current_time.strftime('%Y.%m.%d')}"
 
             # log queued status
@@ -201,7 +202,7 @@ def resubmit_jobs(context):
                                 task_id=new_task_id)
             logger.info(f"re-submitted job_id={job_id}, payload_id={job_status_json['payload_id']}, task_id={new_task_id}")
         except Exception as ex:
-            logger.error("[ERROR] Exception occurred {0}:{1} {2}".format(type(ex), ex, traceback.format_exc()))
+            logger.error(f"[ERROR] Exception occurred {type(ex)}:{ex} {traceback.format_exc()}")
 
 
 if __name__ == "__main__":
