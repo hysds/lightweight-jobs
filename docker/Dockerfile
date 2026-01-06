@@ -34,7 +34,7 @@ RUN set -ex \
  && rm -rf hysds_commons \
  && git clone -b HC-600 https://github.com/hysds/hysds_commons.git \
  && cd hysds_commons \
- && pip install -e . \
+ && pip install -e .
 
 # set entrypoint
 ENTRYPOINT ["/entrypoint-pge-with-stats.sh"]
