@@ -14,7 +14,7 @@ RUN ln -s /root /home/ops
 # Make sure $HOME is set when we run this container
 ENV HOME=/home/ops
 
-USER ops
+USER root
 COPY . /home/ops/lightweight-jobs
 
 RUN set -ex \
