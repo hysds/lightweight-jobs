@@ -17,6 +17,25 @@ ENV HOME=/home/ops
 USER ops
 COPY . /home/ops/lightweight-jobs
 
+RUN set -ex \
+ && source /home/ops/.bash_profile \
+ && cd /root/verdi/ops \
+ && rm -rf hysds \
+ && git clone -b HC-600 https://github.com/hysds/hysds.git \
+ && cd hysds \
+ && pip install -e . \
+ && ln -s /home/ops/verdi/etc/celeryconfig.py celeryconfig.py \
+ && cd ../ \
+ && rm -rf pele \
+ && git clone -b HC-600 https://github.com/hysds/pele.git \
+ && cd pele \
+ && pip install -e . \
+ && cd ../ \
+ && rm -rf hysds_commons \
+ && git clone -b HC-600 https://github.com/hysds/hysds_commons.git \
+ && cd hysds_commons \
+ && pip install -e . \
+
 # set entrypoint
 ENTRYPOINT ["/entrypoint-pge-with-stats.sh"]
 
