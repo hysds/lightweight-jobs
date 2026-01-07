@@ -19,7 +19,7 @@ def aws_get_script(dataset=None):
     grq_es = get_grq_es()
     index = app.conf["DATASET_ALIAS"]
     logger.debug(f"Dataset: {json.dumps(dataset, indent=2)}")
-    paged_result = grq_es.es.search(body=dataset, index=index, size=10, scroll="10m")
+    paged_result = grq_es.search(body=dataset, index=index, size=10, scroll="10m")
     logger.debug(f"Paged Result: {json.dumps(paged_result, indent=2)}")
 
     scroll_ids = set()
