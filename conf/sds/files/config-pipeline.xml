@@ -1,0 +1,138 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job@2.40">
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <jenkins.model.BuildDiscarderProperty>
+      <strategy class="hudson.tasks.LogRotator">
+        <daysToKeep>14</daysToKeep>
+        <numToKeep>14</numToKeep>
+        <artifactDaysToKeep>-1</artifactDaysToKeep>
+        <artifactNumToKeep>-1</artifactNumToKeep>
+      </strategy>
+    </jenkins.model.BuildDiscarderProperty>
+    <com.coravy.hudson.plugins.github.GithubProjectProperty plugin="github@1.18.2">
+      <projectUrl>{{ PROJECT_URL }}</projectUrl>
+      <displayName></displayName>
+    </com.coravy.hudson.plugins.github.GithubProjectProperty>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>BUILD_MODE</name>
+          <description>Build mode: multi-platform creates manifest from both architectures</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>multi-platform</string>
+              <string>amd64-only</string>
+              <string>arm64-only</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>SKIP_TESTS</name>
+          <description>Skip test execution</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.PasswordParameterDefinition>
+          <name>GIT_OAUTH_TOKEN</name>
+          <description>Git OAuth Token</description>
+          <defaultValue>{{ GIT_OAUTH_TOKEN }}</defaultValue>
+        </hudson.model.PasswordParameterDefinition>
+        <hudson.model.PasswordParameterDefinition>
+          <name>PUBLIC_GIT_OAUTH_TOKEN</name>
+          <description>Public Git OAuth Token</description>
+          <defaultValue>{{ PUBLIC_GIT_OAUTH_TOKEN }}</defaultValue>
+        </hudson.model.PasswordParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>CONTAINER_BUILDER_BRANCH</name>
+          <description>Container builder branch to use</description>
+          <defaultValue>{{ CONTAINER_BUILDER_BRANCH }}</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>CONTAINER_BUILDER_REPO</name>
+          <description>Container builder repository</description>
+          <defaultValue>{{ CONTAINER_BUILDER_REPO }}</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>DOCKER_REGISTRY_TAR_FILE</name>
+          <description>Docker registry tar file (base name, -arm64 suffix added automatically for ARM64 builds)</description>
+          <defaultValue>docker-registry-2.tar.gz</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>MOZART_REST_URL</name>
+          <description>Mozart REST API URL (hidden)</description>
+          <defaultValue>https://{{ MOZART_PVT_IP }}/mozart/api/v0.1</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>GRQ_REST_URL</name>
+          <description>GRQ REST API URL (hidden)</description>
+          <defaultValue>https://{{ GRQ_PVT_IP }}:{{ GRQ_PORT }}/api/v0.1</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>CONTAINER_REGISTRY</name>
+          <description>Container registry URL (hidden)</description>
+          <defaultValue>{{ CONTAINER_REGISTRY }}</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>CONTAINER_REGISTRY_BUCKET</name>
+          <description>Container registry bucket (hidden)</description>
+          <defaultValue>{{ CONTAINER_REGISTRY_BUCKET }}</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>STORAGE_URL</name>
+          <description>Storage URL (hidden)</description>
+          <defaultValue>s3://{{ CODE_BUCKET }}</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>OPS_HOME</name>
+          <description>Operations home directory (hidden)</description>
+          <defaultValue>{{ OPS_HOME }}</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+    <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+      <triggers>
+        <com.cloudbees.jenkins.GitHubPushTrigger plugin="github@1.18.2">
+          <spec></spec>
+        </com.cloudbees.jenkins.GitHubPushTrigger>
+      </triggers>
+    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+  </properties>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps@2.87">
+    <scm class="hudson.plugins.git.GitSCM" plugin="git@4.7.1">
+      <configVersion>2</configVersion>
+      <userRemoteConfigs>
+        <hudson.plugins.git.UserRemoteConfig>
+          <refspec>+refs/heads/*:refs/remotes/origin/*</refspec>
+          <url>{{ PROJECT_URL }}</url>
+        </hudson.plugins.git.UserRemoteConfig>
+      </userRemoteConfigs>
+      <branches>
+        <hudson.plugins.git.BranchSpec>
+          <name>**/{{ BRANCH }}</name>
+        </hudson.plugins.git.BranchSpec>
+      </branches>
+      <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+      <submoduleCfg class="list"/>
+      <extensions/>
+    </scm>
+    <scriptPath>conf/sds/files/Jenkinsfile</scriptPath>
+    <lightweight>true</lightweight>
+  </definition>
+  <triggers>
+    <com.cloudbees.jenkins.GitHubPushTrigger plugin="github@1.18.2">
+      <spec></spec>
+    </com.cloudbees.jenkins.GitHubPushTrigger>
+  </triggers>
+  <disabled>false</disabled>
+</flow-definition>
