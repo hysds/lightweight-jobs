@@ -462,11 +462,13 @@ pipeline {
         }
 
         cleanup {
-            echo "[CI] Cleaning up workspace"
             script {
-                sh '''
-                    docker system prune -f || true
-                '''
+                node {
+                    echo "[CI] Cleaning up workspace"
+                    sh '''
+                        docker system prune -f || true
+                    '''
+                }
             }
         }
     }
