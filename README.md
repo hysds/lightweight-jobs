@@ -37,9 +37,68 @@ sds pkg export container-hysds_lightweight-jobs:<tag> -o /tmp
 
 This creates a multi-architecture package containing both x86_64 and ARM64 Docker images.
 
-#### 3. Upload to Artifactory or S3
+#### 3. Split and Upload to GitHub Release
 
-**Option A: Artifactory (Recommended for JPL/IEMS-SDS)**
+Due to GitHub's 2GB asset limit, split the package into chunks:
+
+```bash
+cd /tmp
+# Split into 1.5GB chunks (well under the 2GB limit)
+split -b 1500M container-hysds_lightweight-jobs-<tag>.sdspkg.tar \
+  container-hysds_lightweight-jobs-<tag>.sdspkg.tar.part-
+```
+
+This creates files like:
+- `container-hysds_lightweight-jobs-<tag>.sdspkg.tar.part-aa`
+- `container-hysds_lightweight-jobs-<tag>.sdspkg.tar.part-ab`
+- `container-hysds_lightweight-jobs-<tag>.sdspkg.tar.part-ac`
+
+**Installing GitHub CLI (if needed):**
+
+```bash
+# For x86_64 Linux
+curl -fsSL https://github.com/cli/cli/releases/download/v2.40.1/gh_2.40.1_linux_amd64.tar.gz -o gh.tar.gz
+tar -xzf gh.tar.gz
+sudo mv gh_2.40.1_linux_amd64/bin/gh /usr/local/bin/
+
+# For ARM64 Linux
+curl -fsSL https://github.com/cli/cli/releases/download/v2.40.1/gh_2.40.1_linux_arm64.tar.gz -o gh.tar.gz
+tar -xzf gh.tar.gz
+sudo mv gh_2.40.1_linux_arm64/bin/gh /usr/local/bin/
+
+# Authenticate
+gh auth login
+```
+
+**Upload using GitHub CLI:**
+
+```bash
+gh release upload <tag> container-hysds_lightweight-jobs-<tag>.sdspkg.tar.part-* \
+  --repo hysds/lightweight-jobs
+```
+
+**Alternative: Upload via GitHub API (without CLI)**
+
+```bash
+source ~/.git_oauth_token
+owner=hysds
+repo=lightweight-jobs
+release_id=$(curl -s -H "Authorization: token $GIT_OAUTH_TOKEN" \
+  "https://api.github.com/repos/${owner}/${repo}/releases/tags/<tag>" \
+  | grep '^  "id":' | awk '{print $2}' | sed 's/,//')
+
+for file in container-hysds_lightweight-jobs-<tag>.sdspkg.tar.part-*; do
+  echo "Uploading ${file}..."
+  curl -H "Authorization: token $GIT_OAUTH_TOKEN" \
+    -H "Content-Type: application/octet-stream" \
+    --data-binary @${file} \
+    "https://uploads.github.com/repos/${owner}/${repo}/releases/${release_id}/assets?name=$(basename ${file})"
+done
+```
+
+#### 4. Alternative: Upload to Artifactory or S3
+
+**Option A: Artifactory (For JPL/IEMS-SDS)**
 
 ```bash
 curl -u <user>:<token> -T container-hysds_lightweight-jobs-<tag>.sdspkg.tar \
@@ -53,15 +112,24 @@ aws s3 cp container-hysds_lightweight-jobs-<tag>.sdspkg.tar \
   s3://your-bucket/hysds-packages/lightweight-jobs/<tag>/ --acl public-read
 ```
 
-#### 4. Create GitHub Release (Optional)
-
-For releases prior to v2.0.2, single-architecture packages were uploaded to GitHub releases. Starting with v2.0.2, packages are distributed via Artifactory or S3 due to size constraints. You can still create a GitHub release with release notes and links to the download location.
-
 ### Installation
 
-Import the multi-architecture package on your Mozart instance:
+The HySDS framework installation automatically downloads and reassembles chunked packages from GitHub releases.
+
+**Manual Installation:**
+
+If downloading manually, reassemble the parts first:
 
 ```bash
+# Download all parts
+gh release download <tag> --pattern "container-hysds_lightweight-jobs-*.sdspkg.tar.part-*" \
+  --repo hysds/lightweight-jobs
+
+# Reassemble
+cat container-hysds_lightweight-jobs-<tag>.sdspkg.tar.part-* > \
+  container-hysds_lightweight-jobs-<tag>.sdspkg.tar
+
+# Import
 sds pkg import container-hysds_lightweight-jobs-<tag>.sdspkg.tar
 ```
 
