@@ -1,0 +1,527 @@
+#!/usr/bin/env groovy
+
+pipeline {
+    agent none
+
+    environment {
+        PUBLIC_GIT_OAUTH_TOKEN = "${params.PUBLIC_GIT_OAUTH_TOKEN}"
+        CONTAINER_BUILDER_BRANCH = "${params.CONTAINER_BUILDER_BRANCH}"
+        CONTAINER_BUILDER_REPO = "${params.CONTAINER_BUILDER_REPO}"
+        DOCKER_REGISTRY_TAR_FILE = "${params.DOCKER_REGISTRY_TAR_FILE}"
+        MOZART_REST_URL = "${params.MOZART_REST_URL}"
+        GRQ_REST_URL = "${params.GRQ_REST_URL}"
+        CONTAINER_REGISTRY = "${params.CONTAINER_REGISTRY}"
+        CONTAINER_REGISTRY_BUCKET = "${params.CONTAINER_REGISTRY_BUCKET}"
+        STORAGE_URL = "${params.STORAGE_URL}"
+        OPS_HOME = "${params.OPS_HOME}"
+        SKIP_PUBLISH = "${env.SKIP_PUBLISH ?: 'noskip'}"
+    }
+
+    stages {
+        stage('Setup') {
+            agent any
+            steps {
+                // Completely wipe workspace
+                deleteDir()
+
+                checkout([
+                    $class: 'GitSCM',
+                    branches: scm.branches,
+                    extensions: [
+                        [$class: 'CloneOption', noTags: false, shallow: false, depth: 0, reference: ''],
+                        [$class: 'CleanBeforeCheckout']
+                    ],
+                    userRemoteConfigs: scm.userRemoteConfigs
+                ])
+                script {
+                    // Get tag from branch
+                    env.TAG = env.GIT_BRANCH.tokenize('/').last()
+
+                    // Get repo name (extract org/repo from URL, e.g., IEMS-SDS/swot-pcm)
+                    def repoPath = env.GIT_URL.replaceAll(/^.*:\/\/[^\/]+\//, '').replaceAll(/\.git$/, '')
+                    def repo = repoPath.replaceAll('/', '_')
+                    env.REPO = repo
+                    env.IMAGE_NAME = "container-${repo.toLowerCase()}"
+
+                    echo "[CI] Building ${env.IMAGE_NAME}:${env.TAG}"
+                    echo "[CI] Build mode: ${params.BUILD_MODE}"
+                }
+            }
+        }
+
+        stage('Build Multi-Architecture') {
+            when {
+                expression { params.BUILD_MODE == 'multi-platform' }
+            }
+            parallel {
+                stage('Build amd64') {
+                    agent any
+                    steps {
+                        checkout([
+                            $class: 'GitSCM',
+                            branches: scm.branches,
+                            extensions: [
+                                [$class: 'CloneOption', noTags: false, shallow: false, depth: 0, reference: ''],
+                                [$class: 'CleanBeforeCheckout']
+                            ],
+                            userRemoteConfigs: scm.userRemoteConfigs
+                        ])
+                        script {
+                            echo "[CI] Building amd64 architecture on native x86_64 node"
+                            sh """
+                                source ${OPS_HOME}/verdi/bin/activate
+
+                                if [ ! -z "${CONTAINER_REGISTRY}" -a ! -z "${CONTAINER_REGISTRY_BUCKET}" ]; then
+                                    ${OPS_HOME}/verdi/ops/container-builder/build-container.bash \
+                                        ${REPO} ${TAG}-amd64 ${STORAGE_URL} ${MOZART_REST_URL} ${GRQ_REST_URL} ${SKIP_PUBLISH} ${CONTAINER_REGISTRY} \
+                                        --platform linux/amd64 \
+                                        --skip-metadata
+                                else
+                                    ${OPS_HOME}/verdi/ops/container-builder/build-container.bash \
+                                        ${REPO} ${TAG}-amd64 ${STORAGE_URL} ${MOZART_REST_URL} ${GRQ_REST_URL} ${SKIP_PUBLISH} "" \
+                                        --platform linux/amd64 \
+                                        --skip-metadata
+                                fi
+                            """
+                        }
+                    }
+                }
+
+                stage('Build arm64') {
+                    agent { label 'arm-build' }
+                    steps {
+                        checkout([
+                            $class: 'GitSCM',
+                            branches: scm.branches,
+                            extensions: [
+                                [$class: 'CloneOption', noTags: false, shallow: false, depth: 0, reference: ''],
+                                [$class: 'CleanBeforeCheckout']
+                            ],
+                            userRemoteConfigs: scm.userRemoteConfigs
+                        ])
+                        script {
+                            echo "[CI] Building arm64 architecture on native ARM64 node"
+
+                            // ARM64-specific OPS_HOME
+                            def ARM_OPS_HOME = '/home/ops'
+
+                            // Construct ARM64 tar filename by replacing .tar.gz with -arm64.tar.gz
+                            def arm64TarFile = env.DOCKER_REGISTRY_TAR_FILE.replace('.tar.gz', '-arm64.tar.gz')
+
+                            sh """
+                                set -e
+
+                                # Clone container builder repository if it doesn't exist
+                                if [ ! -d ${ARM_OPS_HOME}/verdi/ops/container-builder ]; then
+                                    echo "[CI] Cloning container builder: ${CONTAINER_BUILDER_REPO} (branch: ${CONTAINER_BUILDER_BRANCH})"
+                                    git clone -b ${CONTAINER_BUILDER_BRANCH} https://${PUBLIC_GIT_OAUTH_TOKEN}@${CONTAINER_BUILDER_REPO} ${ARM_OPS_HOME}/verdi/ops/container-builder
+                                else
+                                    echo "[CI] Container builder already exists, using existing version"
+                                fi
+
+                                cleanup_registry_tar() {
+                                    echo "[CI] Cleaning up local registry tarball"
+                                    rm -f "${arm64TarFile}" || true
+                                }
+                                trap cleanup_registry_tar EXIT
+
+                                # Setup docker registry (only if not already running)
+                                echo "[CI] Setting up Docker registry"
+
+                                # Ensure registry image is loaded (idempotent)
+                                if ! docker images registry:2 --format "{{.Repository}}:{{.Tag}}" | grep -q "registry:2"; then
+                                    echo "[CI] Registry image not found, downloading it"
+                                    aws s3 cp ${STORAGE_URL}/${arm64TarFile} .
+                                    docker load -i ${arm64TarFile}
+                                else
+                                    echo "[CI] Registry image already loaded"
+                                fi
+
+                                # Start registry if not running
+                                if ! docker ps --filter "name=registry" --filter "status=running" | grep -q registry; then
+                                    echo "[CI] Registry not running, starting it"
+                                    docker rm -f registry 2>/dev/null || true
+
+                                    # Try to start, handle race condition if another job starts it simultaneously
+                                    if docker run -p 5050:5000 -e REGISTRY_STORAGE=s3 -e REGISTRY_STORAGE_S3_BUCKET=${CONTAINER_REGISTRY_BUCKET} -e REGISTRY_STORAGE_S3_REGION=us-west-2 --name=registry -d registry:2 2>&1; then
+                                        echo "[CI] Started registry successfully"
+                                        sleep 5
+                                    else
+                                        # Check if another job started it (race condition)
+                                        if docker ps --filter "name=registry" --filter "status=running" | grep -q registry; then
+                                            echo "[CI] Registry was started by another job, reusing it"
+                                        else
+                                            echo "[CI] ERROR: Failed to start registry and no running registry found"
+                                            exit 1
+                                        fi
+                                    fi
+                                else
+                                    echo "[CI] Registry already running, reusing existing instance"
+                                fi
+
+                                # Activate verdi environment
+                                source ${ARM_OPS_HOME}/verdi/bin/activate
+
+                                # Build container
+                                if [ ! -z "${CONTAINER_REGISTRY}" -a ! -z "${CONTAINER_REGISTRY_BUCKET}" ]; then
+                                    ${ARM_OPS_HOME}/verdi/ops/container-builder/build-container.bash \
+                                        ${REPO} ${TAG}-arm64 ${STORAGE_URL} ${MOZART_REST_URL} ${GRQ_REST_URL} ${SKIP_PUBLISH} ${CONTAINER_REGISTRY} \
+                                        --platform linux/arm64 \
+                                        --skip-metadata
+                                else
+                                    ${ARM_OPS_HOME}/verdi/ops/container-builder/build-container.bash \
+                                        ${REPO} ${TAG}-arm64 ${STORAGE_URL} ${MOZART_REST_URL} ${GRQ_REST_URL} ${SKIP_PUBLISH} "" \
+                                        --platform linux/arm64 \
+                                        --skip-metadata
+                                fi
+                            """
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Build Single Architecture') {
+            when {
+                expression { params.BUILD_MODE == 'amd64-only' || params.BUILD_MODE == 'arm64-only' }
+            }
+            agent {
+                label "${params.BUILD_MODE == 'arm64-only' ? 'arm-build' : ''}"
+            }
+            steps {
+                checkout([
+                    $class: 'GitSCM',
+                    branches: scm.branches,
+                    extensions: [
+                        [$class: 'CloneOption', noTags: false, shallow: false, depth: 0, reference: ''],
+                        [$class: 'CleanBeforeCheckout']
+                    ],
+                    userRemoteConfigs: scm.userRemoteConfigs
+                ])
+                script {
+                    def platform = params.BUILD_MODE == 'arm64-only' ? 'linux/arm64' : 'linux/amd64'
+                    def isArm64 = params.BUILD_MODE == 'arm64-only'
+                    def opsHome = isArm64 ? '/home/ops' : env.OPS_HOME
+
+                    // ARM64-specific OPS_HOME
+                    def ARM_OPS_HOME = '/home/ops'
+
+                    // Construct ARM64 tar filename by replacing .tar.gz with -arm64.tar.gz
+                    def arm64TarFile = env.DOCKER_REGISTRY_TAR_FILE.replace('.tar.gz', '-arm64.tar.gz')
+
+                    echo "[CI] Building single architecture: ${platform}"
+
+                    if (isArm64) {
+                        sh """
+                            set -e
+
+                            # Clone container builder repository if it doesn't exist
+                            if [ ! -d ${ARM_OPS_HOME}/verdi/ops/container-builder ]; then
+                                echo "[CI] Cloning container builder: ${CONTAINER_BUILDER_REPO} (branch: ${CONTAINER_BUILDER_BRANCH})"
+                                git clone -b ${CONTAINER_BUILDER_BRANCH} https://${PUBLIC_GIT_OAUTH_TOKEN}@${CONTAINER_BUILDER_REPO} ${ARM_OPS_HOME}/verdi/ops/container-builder
+                            else
+                                echo "[CI] Container builder already exists, using existing version"
+                            fi
+
+                            cleanup_registry_tar() {
+                                echo "[CI] Cleaning up local registry tarball"
+                                rm -f "${arm64TarFile}" || true
+                            }
+                            trap cleanup_registry_tar EXIT
+
+                            # Setup docker registry (only if not already running)
+                            echo "[CI] Setting up Docker registry"
+
+                            # Ensure registry image is loaded (idempotent)
+                            if ! docker images registry:2 --format "{{.Repository}}:{{.Tag}}" | grep -q "registry:2"; then
+                                echo "[CI] Registry image not found, downloading it"
+                                aws s3 cp ${STORAGE_URL}/${arm64TarFile} .
+                                docker load -i ${arm64TarFile}
+                            else
+                                echo "[CI] Registry image already loaded"
+                            fi
+
+                            # Start registry if not running
+                            if ! docker ps --filter "name=registry" --filter "status=running" | grep -q registry; then
+                                echo "[CI] Registry not running, starting it"
+                                docker rm -f registry 2>/dev/null || true
+
+                                # Try to start, handle race condition if another job starts it simultaneously
+                                if docker run -p 5050:5000 -e REGISTRY_STORAGE=s3 -e REGISTRY_STORAGE_S3_BUCKET=${CONTAINER_REGISTRY_BUCKET} -e REGISTRY_STORAGE_S3_REGION=us-west-2 --name=registry -d registry:2 2>&1; then
+                                    echo "[CI] Started registry successfully"
+                                    sleep 5
+                                else
+                                    # Check if another job started it (race condition)
+                                    if docker ps --filter "name=registry" --filter "status=running" | grep -q registry; then
+                                        echo "[CI] Registry was started by another job, reusing it"
+                                    else
+                                        echo "[CI] ERROR: Failed to start registry and no running registry found"
+                                        exit 1
+                                    fi
+                                fi
+                            else
+                                echo "[CI] Registry already running, reusing existing instance"
+                            fi
+                            # Activate verdi environment
+                            source ${ARM_OPS_HOME}/verdi/bin/activate
+
+                            # Build container
+                            if [ ! -z "${CONTAINER_REGISTRY}" -a ! -z "${CONTAINER_REGISTRY_BUCKET}" ]; then
+                                ${ARM_OPS_HOME}/verdi/ops/container-builder/build-container.bash \
+                                    ${REPO} ${TAG} ${STORAGE_URL} ${MOZART_REST_URL} ${GRQ_REST_URL} ${SKIP_PUBLISH} ${CONTAINER_REGISTRY} \
+                                    --platform ${platform}
+                            else
+                                ${ARM_OPS_HOME}/verdi/ops/container-builder/build-container.bash \
+                                    ${REPO} ${TAG} ${STORAGE_URL} ${MOZART_REST_URL} ${GRQ_REST_URL} ${SKIP_PUBLISH} "" \
+                                    --platform ${platform}
+                            fi
+
+                            # Extract test artifacts from ARM64 container
+                            echo "[CI] Extracting test artifacts from ARM64 container"
+                            if [ -f "./docker/extract_artifacts.sh" ]; then
+                                chmod +x ./docker/extract_artifacts.sh
+                                IMAGE="container-\${REPO,,}"
+                                ./docker/extract_artifacts.sh \${IMAGE}:\${TAG,,}-arm64
+
+                                # Rename artifacts with arm64 suffix
+                                [ -f pytest_unit.xml ] && mv pytest_unit.xml pytest_unit-arm64.xml
+                                [ -f flake8.log ] && mv flake8.log flake8-arm64.log
+                                [ -d coverage.html ] && mv coverage.html coverage-arm64.html
+                                [ -f prospector.log ] && mv prospector.log prospector-arm64.log
+                            fi
+                        """
+                    } else {
+                        sh """
+                            source ${opsHome}/verdi/bin/activate
+
+                            if [ ! -z "${CONTAINER_REGISTRY}" -a ! -z "${CONTAINER_REGISTRY_BUCKET}" ]; then
+                                ${opsHome}/verdi/ops/container-builder/build-container.bash \
+                                    ${REPO} ${TAG} ${STORAGE_URL} ${MOZART_REST_URL} ${GRQ_REST_URL} ${SKIP_PUBLISH} ${CONTAINER_REGISTRY} \
+                                    --platform ${platform}
+                            else
+                                ${opsHome}/verdi/ops/container-builder/build-container.bash \
+                                    ${REPO} ${TAG} ${STORAGE_URL} ${MOZART_REST_URL} ${GRQ_REST_URL} ${SKIP_PUBLISH} "" \
+                                    --platform ${platform}
+                            fi
+
+                            # Extract test artifacts from amd64 container
+                            echo "[CI] Extracting test artifacts from amd64 container"
+                            if [ -f "./docker/extract_artifacts.sh" ]; then
+                                chmod +x ./docker/extract_artifacts.sh
+                                IMAGE="container-\${REPO,,}"
+                                ./docker/extract_artifacts.sh \${IMAGE}:\${TAG,,}-amd64
+
+                                # Rename artifacts with amd64 suffix
+                                [ -f pytest_unit.xml ] && mv pytest_unit.xml pytest_unit-amd64.xml
+                                [ -f flake8.log ] && mv flake8.log flake8-amd64.log
+                                [ -d coverage.html ] && mv coverage.html coverage-amd64.html
+                                [ -f prospector.log ] && mv prospector.log prospector-amd64.log
+                            fi
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Create Multi-Platform Manifest') {
+            when {
+                expression { params.BUILD_MODE == 'multi-platform' && env.CONTAINER_REGISTRY != null && env.CONTAINER_REGISTRY != '' }
+            }
+            agent any
+            steps {
+                script {
+                    echo "[CI] Creating multi-platform manifest from architecture-specific images"
+                    sh """
+                        set -ex
+
+                        # Setup docker registry
+                        echo "[CI] Setting up Docker registry"
+
+                        # Ensure registry image is loaded (idempotent)
+                        if ! docker images registry:2 --format "{{.Repository}}:{{.Tag}}" | grep -q "registry:2"; then
+                            echo "[CI] Registry image not found, downloading it"
+                            aws s3 cp ${STORAGE_URL}/${DOCKER_REGISTRY_TAR_FILE} .
+                            docker load -i ${DOCKER_REGISTRY_TAR_FILE}
+                            rm -f ${DOCKER_REGISTRY_TAR_FILE}
+                        else
+                            echo "[CI] Registry image already loaded"
+                        fi
+
+                        # Start docker registry with S3 backend if not running
+                        if ! docker ps --filter "name=registry" --filter "status=running" | grep -q registry; then
+                            echo "[CI] Starting Docker registry with S3 backend"
+                            docker rm -f registry 2>/dev/null || true
+
+                            # Try to start, handle race condition if another job starts it simultaneously
+                            if docker run -p 5050:5000 \
+                                -e REGISTRY_STORAGE=s3 \
+                                -e REGISTRY_STORAGE_S3_BUCKET=${CONTAINER_REGISTRY_BUCKET} \
+                                -e REGISTRY_STORAGE_S3_REGION=us-west-2 \
+                                -e REGISTRY_LOG_LEVEL=debug \
+                                --name=registry -d registry:2 2>&1; then
+                                echo "[CI] Started registry successfully"
+                                # Wait for registry to be ready
+                                echo "[CI] Waiting for registry to initialize"
+                                sleep 10
+                            else
+                                # Check if another job started it (race condition)
+                                if docker ps --filter "name=registry" --filter "status=running" | grep -q registry; then
+                                    echo "[CI] Registry was started by another job, reusing it"
+                                    sleep 5
+                                else
+                                    echo "[CI] ERROR: Failed to start registry and no running registry found"
+                                    exit 1
+                                fi
+                            fi
+                        else
+                            echo "[CI] Registry already running, reusing existing instance"
+                        fi
+
+                        # Check registry health
+                        curl -f http://localhost:5050/v2/ || echo "Registry not responding"
+
+                        # List repositories in registry to verify S3 connection
+                        echo "[CI] Checking repositories in registry"
+                        curl -s http://localhost:5050/v2/_catalog || echo "Failed to list catalog"
+
+                        # Define image names
+                        REGISTRY="${CONTAINER_REGISTRY}"
+                        IMAGE="${IMAGE_NAME}"
+                        TAG_LOWER="${TAG.toLowerCase()}"
+
+                        # Check if manifests exist in S3
+                        echo "[CI] Checking S3 for manifests"
+                        aws s3 ls s3://${CONTAINER_REGISTRY_BUCKET}/docker/registry/v2/repositories/\${IMAGE}/_manifests/tags/ || echo "No tags found in S3"
+
+                        # Use buildx imagetools to inspect remote manifests without pulling
+                        echo "[CI] Inspecting architecture-specific images"
+                        docker buildx imagetools inspect \${REGISTRY}/\${IMAGE}:\${TAG_LOWER}-amd64
+                        docker buildx imagetools inspect \${REGISTRY}/\${IMAGE}:\${TAG_LOWER}-arm64
+
+                        # Create multi-platform manifest using buildx imagetools
+                        echo "[CI] Creating multi-platform manifest"
+                        docker buildx imagetools create -t \${REGISTRY}/\${IMAGE}:\${TAG_LOWER} \
+                            \${REGISTRY}/\${IMAGE}:\${TAG_LOWER}-amd64 \
+                            \${REGISTRY}/\${IMAGE}:\${TAG_LOWER}-arm64
+
+                        # Verify the multi-platform manifest
+                        echo "[CI] Verifying multi-platform manifest"
+                        docker buildx imagetools inspect \${REGISTRY}/\${IMAGE}:\${TAG_LOWER}
+
+                        # Publish metadata for the multi-platform manifest
+                        echo "[CI] Publishing metadata for multi-platform manifest"
+
+                        # Pull the multi-platform manifest to get its digest
+                        docker pull \${REGISTRY}/\${IMAGE}:\${TAG_LOWER}
+
+                        # Get the manifest digest
+                        DIGEST=\$(docker inspect --format='{{index .Id}}' \${REGISTRY}/\${IMAGE}:\${TAG_LOWER} | cut -d'@' -f 2)
+
+                        # Create tarballs for both architectures
+                        echo "[CI] Creating architecture-specific tarballs"
+                        TARBALL_X86="\${IMAGE}-\${TAG_LOWER}.tar.gz"
+                        TARBALL_ARM64="\${IMAGE}-\${TAG_LOWER}-arm64.tar.gz"
+
+                        # Always clean up local tarballs on exit (success or failure)
+                        cleanup_tarballs() {
+                            echo "[CI] Cleaning up local tarballs"
+                            rm -f "\${TARBALL_X86}" "\${TARBALL_ARM64}" "${DOCKER_REGISTRY_TAR_FILE}" || true
+                        }
+                        trap cleanup_tarballs EXIT
+
+                        # Pull and re-tag x86_64 image
+                        echo "[CI] Saving x86_64 tarball"
+                        docker pull --platform linux/amd64 \${REGISTRY}/\${IMAGE}:\${TAG_LOWER}
+                        docker tag \${REGISTRY}/\${IMAGE}:\${TAG_LOWER} \${IMAGE}:\${TAG_LOWER}
+                        docker save \${IMAGE}:\${TAG_LOWER} | gzip > \${TARBALL_X86}
+
+                        # Pull and re-tag arm64 image
+                        echo "[CI] Saving arm64 tarball"
+                        docker pull --platform linux/arm64 \${REGISTRY}/\${IMAGE}:\${TAG_LOWER}
+                        docker tag \${REGISTRY}/\${IMAGE}:\${TAG_LOWER} \${IMAGE}:\${TAG_LOWER}
+                        docker save \${IMAGE}:\${TAG_LOWER} | gzip > \${TARBALL_ARM64}
+
+                        # Upload both tarballs to S3
+                        echo "[CI] Uploading tarballs to S3"
+                        aws s3 cp \${TARBALL_X86} ${STORAGE_URL}/
+                        aws s3 cp \${TARBALL_ARM64} ${STORAGE_URL}/
+
+                        # Activate verdi environment for Python dependencies
+                        source ${OPS_HOME}/verdi/bin/activate
+
+                        # Clone container builder to get container-met.py
+                        if [ -d ${OPS_HOME}/verdi/ops/container-builder ]; then
+                            CONTAINER_BUILDER_PATH="${OPS_HOME}/verdi/ops/container-builder"
+                        else
+                            echo "[CI] Cloning container builder"
+                            git clone -b ${CONTAINER_BUILDER_BRANCH} https://${PUBLIC_GIT_OAUTH_TOKEN}@${CONTAINER_BUILDER_REPO} ${OPS_HOME}/verdi/ops/container-builder
+                            CONTAINER_BUILDER_PATH="${OPS_HOME}/verdi/ops/container-builder"
+                        fi
+
+                        # Publish container metadata with both architecture tarballs
+                        echo "[CI] Publishing container metadata to Mozart with multi-arch URLs"
+                        \${CONTAINER_BUILDER_PATH}/container-met.py \${IMAGE}:\${TAG_LOWER} ${TAG} "\${TARBALL_X86}" ${STORAGE_URL} \${DIGEST} ${MOZART_REST_URL} "\${TARBALL_ARM64}"
+
+                        # Publish job-spec metadata
+                        echo "[CI] Publishing job-spec metadata"
+                        cd ${WORKSPACE}
+                        for specification in docker/job-spec.json*; do
+                            if [ -f "\${specification}" ]; then
+                                specification=\${specification#docker/}
+                                NAME=${REPO}
+                                if [[ "\${specification}" != "job-spec.json" ]]; then
+                                    NAME=\${specification#job-spec.json.}
+                                fi
+                                PRODUCT="job-\${NAME}:${TAG}"
+                                echo "[CI] Publishing job-spec for: \${PRODUCT}"
+                                \${CONTAINER_BUILDER_PATH}/job-met.py docker/\${specification} \${IMAGE}:\${TAG_LOWER} ${TAG} ${MOZART_REST_URL} ${STORAGE_URL}
+                            fi
+                        done
+
+                        # Publish hysds-io metadata
+                        echo "[CI] Publishing hysds-io metadata"
+                        for wiring in docker/hysds-io.json*; do
+                            if [ -f "\${wiring}" ]; then
+                                wiring=\${wiring#docker/}
+                                NAME=${REPO}
+                                if [[ "\${wiring}" != "hysds-io.json" ]]; then
+                                    NAME=\${wiring#hysds-io.json.}
+                                fi
+                                PRODUCT="hysds-io-\${NAME}:${TAG}"
+                                SPEC="job-\${NAME}:${TAG}"
+                                echo "[CI] Publishing hysds-io for: \${PRODUCT}"
+                                \${CONTAINER_BUILDER_PATH}/io-met.py docker/\${wiring} \${SPEC} ${TAG} ${MOZART_REST_URL} ${GRQ_REST_URL}
+                            fi
+                        done
+
+                        echo "[CI] Multi-platform manifest created and pushed successfully"
+                        echo "[CI] Image: \${REGISTRY}/\${IMAGE}:\${TAG_LOWER}"
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "[CI] ✅ Build completed successfully!"
+            echo "[CI] Image: ${env.IMAGE_NAME}:${env.TAG}"
+        }
+
+        failure {
+            echo "[CI] ❌ Build failed. Check logs for details."
+            echo "[CI] Failed at stage: ${env.STAGE_NAME}"
+        }
+
+        cleanup {
+            script {
+                node {
+                    echo "[CI] Cleaning up workspace"
+                    sh '''
+                        docker system prune -f || true
+                    '''
+                }
+            }
+        }
+    }
+}
