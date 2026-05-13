@@ -127,20 +127,34 @@ pipeline {
 
                                 # Setup docker registry (only if not already running)
                                 echo "[CI] Setting up Docker registry"
-                                if ! docker ps --filter "name=registry" --filter "status=running" | grep -q registry; then
-                                    echo "[CI] Registry not running, downloading and starting it"
+
+                                # Ensure registry image is loaded (idempotent)
+                                if ! docker images registry:2 --format "{{.Repository}}:{{.Tag}}" | grep -q "registry:2"; then
+                                    echo "[CI] Registry image not found, downloading it"
                                     aws s3 cp ${STORAGE_URL}/${arm64TarFile} .
                                     docker load -i ${arm64TarFile}
+                                else
+                                    echo "[CI] Registry image already loaded"
+                                fi
 
-                                    # Remove any stopped registry container
+                                # Start registry if not running
+                                if ! docker ps --filter "name=registry" --filter "status=running" | grep -q registry; then
+                                    echo "[CI] Registry not running, starting it"
                                     docker rm -f registry 2>/dev/null || true
 
-                                    # Start docker registry
-                                    docker run -p 5050:5000 -e REGISTRY_STORAGE=s3 -e REGISTRY_STORAGE_S3_BUCKET=${CONTAINER_REGISTRY_BUCKET} -e REGISTRY_STORAGE_S3_REGION=us-west-2 --name=registry -d registry:2
-
-                                    # Wait for registry to be ready
-                                    echo "[CI] Waiting for registry to initialize"
-                                    sleep 5
+                                    # Try to start, handle race condition if another job starts it simultaneously
+                                    if docker run -p 5050:5000 -e REGISTRY_STORAGE=s3 -e REGISTRY_STORAGE_S3_BUCKET=${CONTAINER_REGISTRY_BUCKET} -e REGISTRY_STORAGE_S3_REGION=us-west-2 --name=registry -d registry:2 2>&1; then
+                                        echo "[CI] Started registry successfully"
+                                        sleep 5
+                                    else
+                                        # Check if another job started it (race condition)
+                                        if docker ps --filter "name=registry" --filter "status=running" | grep -q registry; then
+                                            echo "[CI] Registry was started by another job, reusing it"
+                                        else
+                                            echo "[CI] ERROR: Failed to start registry and no running registry found"
+                                            exit 1
+                                        fi
+                                    fi
                                 else
                                     echo "[CI] Registry already running, reusing existing instance"
                                 fi
@@ -217,20 +231,34 @@ pipeline {
 
                             # Setup docker registry (only if not already running)
                             echo "[CI] Setting up Docker registry"
-                            if ! docker ps --filter "name=registry" --filter "status=running" | grep -q registry; then
-                                echo "[CI] Registry not running, downloading and starting it"
+
+                            # Ensure registry image is loaded (idempotent)
+                            if ! docker images registry:2 --format "{{.Repository}}:{{.Tag}}" | grep -q "registry:2"; then
+                                echo "[CI] Registry image not found, downloading it"
                                 aws s3 cp ${STORAGE_URL}/${arm64TarFile} .
                                 docker load -i ${arm64TarFile}
+                            else
+                                echo "[CI] Registry image already loaded"
+                            fi
 
-                                # Remove any stopped registry container
+                            # Start registry if not running
+                            if ! docker ps --filter "name=registry" --filter "status=running" | grep -q registry; then
+                                echo "[CI] Registry not running, starting it"
                                 docker rm -f registry 2>/dev/null || true
 
-                                # Start docker registry
-                                docker run -p 5050:5000 -e REGISTRY_STORAGE=s3 -e REGISTRY_STORAGE_S3_BUCKET=${CONTAINER_REGISTRY_BUCKET} -e REGISTRY_STORAGE_S3_REGION=us-west-2 --name=registry -d registry:2
-
-                                # Wait for registry to be ready
-                                echo "[CI] Waiting for registry to initialize"
-                                sleep 5
+                                # Try to start, handle race condition if another job starts it simultaneously
+                                if docker run -p 5050:5000 -e REGISTRY_STORAGE=s3 -e REGISTRY_STORAGE_S3_BUCKET=${CONTAINER_REGISTRY_BUCKET} -e REGISTRY_STORAGE_S3_REGION=us-west-2 --name=registry -d registry:2 2>&1; then
+                                    echo "[CI] Started registry successfully"
+                                    sleep 5
+                                else
+                                    # Check if another job started it (race condition)
+                                    if docker ps --filter "name=registry" --filter "status=running" | grep -q registry; then
+                                        echo "[CI] Registry was started by another job, reusing it"
+                                    else
+                                        echo "[CI] ERROR: Failed to start registry and no running registry found"
+                                        exit 1
+                                    fi
+                                fi
                             else
                                 echo "[CI] Registry already running, reusing existing instance"
                             fi
@@ -306,24 +334,48 @@ pipeline {
                     sh """
                         set -ex
 
-                        # Download and load docker registry tar
+                        # Setup docker registry
                         echo "[CI] Setting up Docker registry"
-                        aws s3 cp ${STORAGE_URL}/${DOCKER_REGISTRY_TAR_FILE} .
-                        docker load -i ${DOCKER_REGISTRY_TAR_FILE}
 
-                        # Start docker registry with S3 backend
-                        echo "[CI] Starting Docker registry with S3 backend"
-                        docker rm -f registry || true
-                        docker run -p 5050:5000 \
-                            -e REGISTRY_STORAGE=s3 \
-                            -e REGISTRY_STORAGE_S3_BUCKET=${CONTAINER_REGISTRY_BUCKET} \
-                            -e REGISTRY_STORAGE_S3_REGION=us-west-2 \
-                            -e REGISTRY_LOG_LEVEL=debug \
-                            --name=registry -d registry:2
+                        # Ensure registry image is loaded (idempotent)
+                        if ! docker images registry:2 --format "{{.Repository}}:{{.Tag}}" | grep -q "registry:2"; then
+                            echo "[CI] Registry image not found, downloading it"
+                            aws s3 cp ${STORAGE_URL}/${DOCKER_REGISTRY_TAR_FILE} .
+                            docker load -i ${DOCKER_REGISTRY_TAR_FILE}
+                            rm -f ${DOCKER_REGISTRY_TAR_FILE}
+                        else
+                            echo "[CI] Registry image already loaded"
+                        fi
 
-                        # Wait for registry to be ready
-                        echo "[CI] Waiting for registry to initialize"
-                        sleep 10
+                        # Start docker registry with S3 backend if not running
+                        if ! docker ps --filter "name=registry" --filter "status=running" | grep -q registry; then
+                            echo "[CI] Starting Docker registry with S3 backend"
+                            docker rm -f registry 2>/dev/null || true
+
+                            # Try to start, handle race condition if another job starts it simultaneously
+                            if docker run -p 5050:5000 \
+                                -e REGISTRY_STORAGE=s3 \
+                                -e REGISTRY_STORAGE_S3_BUCKET=${CONTAINER_REGISTRY_BUCKET} \
+                                -e REGISTRY_STORAGE_S3_REGION=us-west-2 \
+                                -e REGISTRY_LOG_LEVEL=debug \
+                                --name=registry -d registry:2 2>&1; then
+                                echo "[CI] Started registry successfully"
+                                # Wait for registry to be ready
+                                echo "[CI] Waiting for registry to initialize"
+                                sleep 10
+                            else
+                                # Check if another job started it (race condition)
+                                if docker ps --filter "name=registry" --filter "status=running" | grep -q registry; then
+                                    echo "[CI] Registry was started by another job, reusing it"
+                                    sleep 5
+                                else
+                                    echo "[CI] ERROR: Failed to start registry and no running registry found"
+                                    exit 1
+                                fi
+                            fi
+                        else
+                            echo "[CI] Registry already running, reusing existing instance"
+                        fi
 
                         # Check registry health
                         curl -f http://localhost:5050/v2/ || echo "Registry not responding"
