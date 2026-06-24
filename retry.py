@@ -224,7 +224,7 @@ def resubmit_jobs(context):
             logger.error(f"[ERROR] Exception occurred {type(ex)}:{ex} {traceback.format_exc()}")
 
     if not_found_job_ids:
-        msg_details = "Jobs not found:\n"
+        msg_details = "Some jobs not found, so could not retry:\n"
         msg_details += json.dumps(not_found_job_ids, indent=2)
         logger.warning(msg_details)
         if len(retry_job_ids) == 1:
