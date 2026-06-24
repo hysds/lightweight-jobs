@@ -14,7 +14,7 @@ from hysds.orchestrator import run_job
 from hysds.log_utils import log_job_status
 from hysds.utils import datetime_iso_naive
 
-from utils import revoke
+from utils import revoke, create_info_message_files
 
 
 STATUS_ALIAS = app.conf["STATUS_ALIAS"]
@@ -46,6 +46,23 @@ def query_es(job_id):
         }
     }
     return mozart_es.search(index=JOB_STATUS_CURRENT, body=query_json)
+
+
+@backoff.on_exception(backoff.expo, Exception, max_tries=4, max_value=4)
+def query_es_required(job_id):
+    query_json = {
+        "query": {
+            "bool": {
+                "must": [
+                    {"term": {"job.job_info.id": job_id}}
+                ]
+            }
+        }
+    }
+    result = mozart_es.search(index=JOB_STATUS_CURRENT, body=query_json)
+    if result['hits']['total']['value'] == 0:
+        raise ValueError(f"job id {job_id} not found in OpenSearch")
+    return result
 
 
 @backoff.on_exception(backoff.expo, Exception, max_tries=10, max_value=64)
@@ -89,13 +106,12 @@ def resubmit_jobs(context):
     else:
         retry_job_ids = [context['retry_job_id']]
 
+    not_found_job_ids = []
+
     for job_id in retry_job_ids:
         logger.info(f"Validating retry job: {job_id}")
         try:
-            doc = query_es(job_id)
-            if doc['hits']['total']['value'] == 0:
-                logger.warning('job id %s not found in Elasticsearch. Continuing.' % job_id)
-                continue
+            doc = query_es_required(job_id)
             doc = doc["hits"]["hits"][0]
 
             job_json = doc["_source"]["job"]
@@ -201,8 +217,20 @@ def resubmit_jobs(context):
                                 priority=job_json['priority'],
                                 task_id=new_task_id)
             logger.info(f"re-submitted job_id={job_id}, payload_id={job_status_json['payload_id']}, task_id={new_task_id}")
+        except ValueError as ex:
+            logger.warning(str(ex))
+            not_found_job_ids.append(job_id)
         except Exception as ex:
             logger.error(f"[ERROR] Exception occurred {type(ex)}:{ex} {traceback.format_exc()}")
+
+    if not_found_job_ids:
+        msg_details = "Jobs not found:\n"
+        msg_details += json.dumps(not_found_job_ids, indent=2)
+        logger.warning(msg_details)
+        if len(retry_job_ids) == 1:
+            raise RuntimeError(f"job id {not_found_job_ids[0]} not found")
+        else:
+            create_info_message_files(msg_details=msg_details)
 
 
 if __name__ == "__main__":
