@@ -70,7 +70,7 @@ def delete_by_id(index, _id):
     results = mozart_es.search_by_id(index=index, id=_id, return_all=True)
     for result in results:
         logger.info(f"Deleting job {result['_id']} in {result['_index']}")
-        mozart_es.delete_by_id(index=result['_index'], id=result['_id'])
+        mozart_es.delete_by_id(index=result['_index'], id=result['_id'], ignore=[404])
 
 
 def get_new_job_priority(old_priority, increment_by, new_priority):
