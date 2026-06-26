@@ -10,6 +10,7 @@ from celery import uuid
 
 from hysds.celery import app
 from hysds.es_util import get_mozart_es
+from hysds.lock import JobLock
 from hysds.orchestrator import run_job
 from hysds.log_utils import log_job_status
 from hysds.utils import datetime_iso_naive
@@ -73,6 +74,43 @@ def delete_by_id(index, _id):
         mozart_es.delete_by_id(index=result['_index'], id=result['_id'], ignore=[404])
 
 
+def _wait_for_lock_release(payload_id, task_id, timeout, max_interval):
+    """Poll the Redis job lock with exponential backoff until released or timeout is reached."""
+
+    temp_lock = JobLock(payload_id, task_id="revoke-wait", worker_hostname="mozart")
+
+    def _on_giveup(details):
+        logger.warning(
+            f"Lock for payload {payload_id} not released within "
+            f"{details['elapsed']:.1f}s. Force-releasing before resubmit."
+        )
+        temp_lock.force_release()
+
+    @backoff.on_predicate(
+        backoff.expo,
+        max_time=timeout,
+        max_value=max_interval,
+        on_backoff=lambda details: logger.info(
+            f"Lock for payload {payload_id} still held by {task_id}, retrying in {details['wait']:.1f}s "
+            f"(elapsed: {details['elapsed']:.1f}s)"
+        ),
+        on_giveup=_on_giveup,
+    )
+    def _poll():
+        try:
+            metadata = temp_lock.get_lock_metadata()
+            if not metadata or metadata.get("task_id") != task_id:
+                return True
+        except Exception as e:
+            logger.warning(f"Error polling lock metadata for payload {payload_id}: {e}")
+        return False
+
+    result = _poll()
+    if result:
+        logger.info(f"Lock for payload {payload_id} released, proceeding with resubmit")
+    return result
+
+
 def get_new_job_priority(old_priority, increment_by, new_priority):
     if increment_by is not None:
         priority = int(old_priority) + int(increment_by)
@@ -107,6 +145,13 @@ def resubmit_jobs(context):
         retry_job_ids = [context['retry_job_id']]
 
     not_found_job_ids = []
+    revoke_timed_out = []
+    info_msgs = []
+    info_msg_details = ""
+
+    heartbeat_interval = app.conf.get("JOB_LOCK_HEARTBEAT_INTERVAL", 30)
+    revoke_wait_timeout = heartbeat_interval * app.conf.get("JOB_LOCK_STALE_CHECK_RETRIES", 3) + app.conf.get("JOB_LOCK_REDELIVERY_BUFFER_TIME", 10)
+    revoke_wait_max_interval = heartbeat_interval // 2
 
     for job_id in retry_job_ids:
         logger.info(f"Validating retry job: {job_id}")
@@ -167,6 +212,13 @@ def resubmit_jobs(context):
                 logger.error("Got error issuing revoke on job {} ({}): {}".format(job_id, task_id, traceback.format_exc()))
                 logger.error("Continuing.")
 
+            # if the task was actively running, wait for confirmation it has stopped
+            # before resubmitting to avoid the deduplication lock race condition
+            if state == "STARTED":
+                payload_id = job_json['job_info']['job_payload']['payload_task_id']
+                if not _wait_for_lock_release(payload_id, task_id, revoke_wait_timeout, revoke_wait_max_interval):
+                    revoke_timed_out.append(f"payload_id: {payload_id} (task_id: {task_id})")
+
             # generate celery task id
             new_task_id = uuid()
             job_json['task_id'] = new_task_id
@@ -223,14 +275,24 @@ def resubmit_jobs(context):
         except Exception as ex:
             logger.error(f"[ERROR] Exception occurred {type(ex)}:{ex} {traceback.format_exc()}")
 
-    if not_found_job_ids:
-        msg_details = "Some jobs not found, so could not retry:\n"
-        msg_details += json.dumps(not_found_job_ids, indent=2)
-        logger.warning(msg_details)
-        if len(retry_job_ids) == 1:
-            raise RuntimeError(f"job id {not_found_job_ids[0]} not found")
-        else:
-            create_info_message_files(msg_details=msg_details)
+    if revoke_timed_out:
+        info_msgs.append("Revoke wait timed out")
+        info_msg_details += f"\n\nLock for these jobs did not release within {revoke_wait_timeout}s. Force-released before resubmission:\n"
+        for detail in revoke_timed_out:
+            info_msg_details += f"{detail}\n"
+
+    if not_found_job_ids and len(retry_job_ids) > 1:
+        not_found_details = "Some jobs not found, so could not retry:\n"
+        not_found_details += json.dumps(not_found_job_ids, indent=2)
+        logger.warning(not_found_details)
+        info_msgs.append("Some retry jobs not found")
+        info_msg_details += f"\n\n{not_found_details}"
+
+    if info_msgs:
+        create_info_message_files(msg=info_msgs, msg_details=info_msg_details)
+
+    if not_found_job_ids and len(retry_job_ids) == 1:
+        raise RuntimeError(f"job id {not_found_job_ids[0]} not found")
 
 
 if __name__ == "__main__":
