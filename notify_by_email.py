@@ -6,6 +6,8 @@ import json
 import base64
 import socket
 
+import backoff
+
 from smtplib import SMTP
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -197,6 +199,23 @@ def get_facetview_link(link, _id, version=None):
     return "{}/?{}".format(link, query_string)
 
 
+@backoff.on_predicate(
+    backoff.expo, lambda r: r["hits"]["total"]["value"] == 0, max_tries=4, max_value=4
+)
+def search_until_visible(es, index, query):
+    """Look up the triggering doc, retrying while it isn't search-visible yet.
+
+    The user_rules trigger can fire before the ingested doc is searchable --
+    refresh lag, or a lagging replica since this lookup carries no shard
+    preference. Removing the fixed user_rules sleeps (HC-633) widens that
+    window, so an immediate lookup can miss and produce a metadata-less email.
+    Retry on empty results to let the write become visible, then give up
+    gracefully: the caller still sends the notification (minus the metadata
+    snippet) if the doc never appears, so slow indexing never drops the email.
+    """
+    return es.search(index=index, body=query)
+
+
 if __name__ == "__main__":
     path = "/".join(__file__.split("/")[0:-1])
     settings_file = os.path.join(path, "settings.json")
@@ -235,7 +254,7 @@ if __name__ == "__main__":
             }
         }
     }
-    result = es.search(index=index, body=query)  # can't use get_by_id on alias
+    result = search_until_visible(es, index, query)  # can't use get_by_id on alias
 
     if result["hits"]["total"]["value"] > 0:
         doc = result["hits"]["hits"][0]
