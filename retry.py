@@ -35,21 +35,20 @@ def read_context():
         return cxt
 
 
-@backoff.on_exception(backoff.expo, Exception, max_tries=10, max_value=64)
-def query_es(job_id):
-    query_json = {
-        "query": {
-            "bool": {
-                "must": [
-                    {"term": {"job.job_info.id": job_id}}
-                ]
-            }
-        }
-    }
-    return mozart_es.search(index=JOB_STATUS_CURRENT, body=query_json)
+class JobNotFoundError(Exception):
+    """The retry target job id has no status doc in OpenSearch."""
 
 
-@backoff.on_exception(backoff.expo, Exception, max_tries=4, max_value=4)
+# Two retry budgets: the outer decorator retries a not-found result briefly
+# (HC-633: the faster user_rules trigger can fire before the just-written
+# status doc is search-visible), while the inner decorator keeps the long
+# transport retry so a transient OpenSearch outage surfaces as a retried
+# query, not a skipped job. JobNotFoundError is raised as a distinct type so
+# only the not-found signal is handled as "job not found" by the caller --
+# a ValueError from unrelated code must not be misreported as a missing job.
+@backoff.on_exception(backoff.expo, JobNotFoundError, max_tries=4, max_value=4)
+@backoff.on_exception(backoff.expo, Exception, max_tries=10, max_value=64,
+                      giveup=lambda e: isinstance(e, JobNotFoundError))
 def query_es_required(job_id):
     query_json = {
         "query": {
@@ -62,29 +61,60 @@ def query_es_required(job_id):
     }
     result = mozart_es.search(index=JOB_STATUS_CURRENT, body=query_json)
     if result['hits']['total']['value'] == 0:
-        raise ValueError(f"job id {job_id} not found in OpenSearch")
+        raise JobNotFoundError(f"job id {job_id} not found in OpenSearch")
     return result
 
 
 @backoff.on_exception(backoff.expo, Exception, max_tries=10, max_value=64)
 def delete_by_id(index, _id):
-    results = mozart_es.search_by_id(index=index, id=_id, return_all=True)
+    # without ignore=[404], search_by_id raises ValueError on 0 hits (e.g. a
+    # concurrent retry already deleted the doc), which would churn through
+    # this backoff for minutes before failing the retry; an already-absent
+    # doc is a no-op here, so ask for the not-found sentinel and skip it
+    results = mozart_es.search_by_id(index=index, id=_id, return_all=True, ignore=[404])
     for result in results:
+        if result.get("found") is False:
+            logger.info(f"No {_id} doc found in {index}; nothing to delete.")
+            continue
         logger.info(f"Deleting job {result['_id']} in {result['_index']}")
         mozart_es.delete_by_id(index=result['_index'], id=result['_id'], ignore=[404])
 
 
 def _wait_for_lock_release(payload_id, task_id, timeout, max_interval):
-    """Poll the Redis job lock with exponential backoff until released or timeout is reached."""
+    """Poll the Redis job lock with exponential backoff until released or timeout is reached.
+
+    Returns "released" if the lock was released while polling, "force_released"
+    if the timeout hit with the revoked task confirmed stopped (its stale lock
+    is cleared before resubmit), or "held" if the timeout hit while the task
+    still appears to be running (the lock is left in place -- force-releasing
+    a live task's lock would let the resubmitted job run concurrently with the
+    original, the duplicate-execution race the lock exists to prevent; the
+    resubmitted job may fail lock acquisition until the task actually stops).
+    """
 
     temp_lock = JobLock(payload_id, task_id="revoke-wait", worker_hostname="mozart")
+    outcome = {"result": "held"}
 
     def _on_giveup(details):
-        logger.warning(
-            f"Lock for payload {payload_id} not released within "
-            f"{details['elapsed']:.1f}s. Force-releasing before resubmit."
-        )
-        temp_lock.force_release()
+        # revoke() failures are logged-and-continued by the caller, so the
+        # original task may still be alive and heartbeating its lock; only
+        # clear the lock once celery confirms the task reached a terminal
+        # state, otherwise leave it to the resubmitted job's own acquisition
+        state = app.AsyncResult(task_id).state
+        if state in ("SUCCESS", "FAILURE", "REVOKED"):
+            logger.warning(
+                f"Lock for payload {payload_id} not released within "
+                f"{details['elapsed']:.1f}s but task {task_id} is {state}. "
+                f"Force-releasing stale lock before resubmit."
+            )
+            temp_lock.force_release()
+            outcome["result"] = "force_released"
+        else:
+            logger.error(
+                f"Lock for payload {payload_id} not released within "
+                f"{details['elapsed']:.1f}s and task {task_id} is still {state}. "
+                f"Leaving lock in place to avoid duplicate execution."
+            )
 
     @backoff.on_predicate(
         backoff.expo,
@@ -105,10 +135,10 @@ def _wait_for_lock_release(payload_id, task_id, timeout, max_interval):
             logger.warning(f"Error polling lock metadata for payload {payload_id}: {e}")
         return False
 
-    result = _poll()
-    if result:
+    if _poll():
         logger.info(f"Lock for payload {payload_id} released, proceeding with resubmit")
-    return result
+        return "released"
+    return outcome["result"]
 
 
 def get_new_job_priority(old_priority, increment_by, new_priority):
@@ -145,7 +175,9 @@ def resubmit_jobs(context):
         retry_job_ids = [context['retry_job_id']]
 
     not_found_job_ids = []
-    revoke_timed_out = []
+    errored_job_ids = []
+    force_released_locks = []
+    locks_still_held = []
     info_msgs = []
     info_msg_details = ""
 
@@ -216,8 +248,11 @@ def resubmit_jobs(context):
             # before resubmitting to avoid the deduplication lock race condition
             if state == "STARTED":
                 payload_id = job_json['job_info']['job_payload']['payload_task_id']
-                if not _wait_for_lock_release(payload_id, task_id, revoke_wait_timeout, revoke_wait_max_interval):
-                    revoke_timed_out.append(f"payload_id: {payload_id} (task_id: {task_id})")
+                lock_outcome = _wait_for_lock_release(payload_id, task_id, revoke_wait_timeout, revoke_wait_max_interval)
+                if lock_outcome == "force_released":
+                    force_released_locks.append(f"payload_id: {payload_id} (task_id: {task_id})")
+                elif lock_outcome == "held":
+                    locks_still_held.append(f"payload_id: {payload_id} (task_id: {task_id})")
 
             # generate celery task id
             new_task_id = uuid()
@@ -269,16 +304,23 @@ def resubmit_jobs(context):
                                 priority=job_json['priority'],
                                 task_id=new_task_id)
             logger.info(f"re-submitted job_id={job_id}, payload_id={job_status_json['payload_id']}, task_id={new_task_id}")
-        except ValueError as ex:
+        except JobNotFoundError as ex:
             logger.warning(str(ex))
             not_found_job_ids.append(job_id)
         except Exception as ex:
             logger.error(f"[ERROR] Exception occurred {type(ex)}:{ex} {traceback.format_exc()}")
+            errored_job_ids.append(job_id)
 
-    if revoke_timed_out:
+    if force_released_locks:
         info_msgs.append("Revoke wait timed out")
-        info_msg_details += f"\n\nLock for these jobs did not release within {revoke_wait_timeout}s. Force-released before resubmission:\n"
-        for detail in revoke_timed_out:
+        info_msg_details += f"\n\nLock for these jobs did not release within {revoke_wait_timeout}s. The revoked task had stopped, so the stale lock was force-released before resubmission:\n"
+        for detail in force_released_locks:
+            info_msg_details += f"{detail}\n"
+
+    if locks_still_held:
+        info_msgs.append("Job lock still held at resubmit")
+        info_msg_details += f"\n\nThe original task for these jobs was still running {revoke_wait_timeout}s after revoke. Their locks were left in place to avoid duplicate execution, so the resubmitted job may fail with 'already running' until the task stops:\n"
+        for detail in locks_still_held:
             info_msg_details += f"{detail}\n"
 
     if not_found_job_ids and len(retry_job_ids) > 1:
@@ -288,11 +330,21 @@ def resubmit_jobs(context):
         info_msgs.append("Some retry jobs not found")
         info_msg_details += f"\n\n{not_found_details}"
 
+    if errored_job_ids and len(retry_job_ids) > 1:
+        errored_details = "Some jobs hit errors during resubmission; see tracebacks in the log:\n"
+        errored_details += json.dumps(errored_job_ids, indent=2)
+        logger.warning(errored_details)
+        info_msgs.append("Some retry jobs errored")
+        info_msg_details += f"\n\n{errored_details}"
+
     if info_msgs:
         create_info_message_files(msg=info_msgs, msg_details=info_msg_details)
 
-    if not_found_job_ids and len(retry_job_ids) == 1:
-        raise RuntimeError(f"job id {not_found_job_ids[0]} not found")
+    if len(retry_job_ids) == 1:
+        if not_found_job_ids:
+            raise RuntimeError(f"job id {not_found_job_ids[0]} not found")
+        if errored_job_ids:
+            raise RuntimeError(f"failed to resubmit job id {errored_job_ids[0]}; see traceback in the log")
 
 
 if __name__ == "__main__":
