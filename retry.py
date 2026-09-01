@@ -65,19 +65,60 @@ def query_es_required(job_id):
     return result
 
 
+def _resolve_index_members(index):
+    """Return the concrete OPEN indices behind an alias, or [index] if not an alias.
+
+    Cluster metadata, not a search: immune to the refresh_interval staleness
+    (HC-640) that a _search-based location lookup hits when logstash moves a
+    job-failed doc between the alias's member indices. expand_wildcards="open"
+    keeps closed members out of the sweep (an ISM policy that closes
+    job_status dailies before deleting them can leave half the alias closed)
+    instead of sending them deletes that can only answer 400.
+
+    No backoff of its own: the caller's decorator retries the whole sweep, and
+    stacking a second 10-try backoff here turns one OpenSearch outage into
+    ~100 attempts before the retry job gives up. A 403 here is NOT ignored on
+    purpose: it means the retry job's OpenSearch user cannot read aliases, and
+    that must fail the retry loudly rather than skip the delete.
+    """
+    resp = mozart_es.es.indices.get_alias(name=index, expand_wildcards="open", ignore=[404])
+    if isinstance(resp, dict) and "error" not in resp and len(resp) > 0:
+        return sorted(resp.keys())
+    logger.info(f"{index} is not an alias; treating it as a concrete index")
+    return [index]
+
+
 @backoff.on_exception(backoff.expo, Exception, max_tries=10, max_value=64)
 def delete_by_id(index, _id):
-    # without ignore=[404], search_by_id raises ValueError on 0 hits (e.g. a
-    # concurrent retry already deleted the doc), which would churn through
-    # this backoff for minutes before failing the retry; an already-absent
-    # doc is a no-op here, so ask for the not-found sentinel and skip it
-    results = mozart_es.search_by_id(index=index, id=_id, return_all=True, ignore=[404])
-    for result in results:
-        if result.get("found") is False:
-            logger.info(f"No {_id} doc found in {index}; nothing to delete.")
-            continue
-        logger.info(f"Deleting job {result['_id']} in {result['_index']}")
-        mozart_es.delete_by_id(index=result['_index'], id=result['_id'], ignore=[404])
+    """Delete the doc id at EVERY concrete index behind `index`.
+
+    Doc-ID deletes are realtime (translog), so unlike the previous
+    search-then-delete-at-the-found-address, this cannot act on a stale view
+    of which member index currently holds the doc (HC-640: the job-failed doc
+    moves from job_status-<date> to job_failed while the retry is running).
+    An index without the doc is a no-op (404). 400 is ignored too so a member
+    that closed between get_alias and the delete cannot sink the retry.
+    Anything else (403 in particular) raises: a permission problem must fail
+    the retry loudly, not silently leave the orphan class in place.
+
+    Returns the list of member indices a live doc was actually deleted from.
+    """
+    deleted_from = []
+    for member in _resolve_index_members(index):
+        res = mozart_es.delete_by_id(index=member, id=_id, ignore=[400, 404])
+        if isinstance(res, dict) and res.get("result") == "deleted":
+            logger.info(f"Deleted job status doc {_id} from {member}")
+            deleted_from.append(member)
+        elif isinstance(res, dict) and res.get("status") == 400:
+            logger.warning(f"Skipped {member} for {_id}: {res.get('error')}")
+        else:
+            logger.info(f"No {_id} doc in {member}; nothing to delete.")
+    if not deleted_from:
+        # Doc not indexed anywhere yet at delete time. assert_doc_settled
+        # (hysds/es_util.py:24) makes this unexpected for the retry flow;
+        # a late in-flight write re-creating the doc afterward is HC-648.
+        logger.warning(f"{_id} not found in any index behind {index}; nothing deleted")
+    return deleted_from
 
 
 def _wait_for_lock_release(payload_id, task_id, timeout, max_interval):
@@ -258,12 +299,11 @@ def resubmit_jobs(context):
             new_task_id = uuid()
             job_json['task_id'] = new_task_id
 
-            # delete old job status; we should pass in the job_status-current alias
-            # instead so that we make sure to properly handle the scenario where
-            # figaro rules are in place to auto retry jobs that fail due to spot termination.
-            # This may potentially cause duplicate records across the job_status
-            # and job_failed indices
-            delete_by_id(JOB_STATUS_CURRENT, _id)
+            # delete the old job status doc everywhere it lives: the sweep is
+            # alias-wide and realtime, so a job-failed doc that logstash has
+            # already moved out of the dated index is still deleted (HC-640).
+            # A duplicate surviving this is the late-write variant, HC-648.
+            deleted_from = delete_by_id(JOB_STATUS_CURRENT, _id)
 
             # check if new queues, soft time limit, and time limit values were set
             new_job_queue = context.get("job_queue", "")
@@ -282,8 +322,9 @@ def resubmit_jobs(context):
                 job_json['job_info']['time_limit'] = int(new_time_limit)
 
             # Before re-queueing, check to see if the job was under the job_failed index. If so, need to
-            # move it back to job_status
-            if index.startswith("job_failed"):
+            # move it back to job_status. Decide from the realtime delete sweep
+            # as well, not only the search's (possibly stale, HC-640) view of _index.
+            if index.startswith("job_failed") or any(m.startswith("job_failed") for m in deleted_from):
                 current_time = datetime.now(timezone.utc)
                 job_json['job_info']['index'] = f"job_status-{current_time.strftime('%Y.%m.%d')}"
 
