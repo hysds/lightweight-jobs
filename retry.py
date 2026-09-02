@@ -50,6 +50,15 @@ class JobNotFoundError(Exception):
 @backoff.on_exception(backoff.expo, Exception, max_tries=10, max_value=64,
                       giveup=lambda e: isinstance(e, JobNotFoundError))
 def query_es_required(job_id):
+    # job.job_info.id is stamped once and reused by every attempt in a
+    # payload's lineage, so this can match more than one doc: an orphaned
+    # job_failed doc from a dead attempt alongside the live attempt's dated
+    # doc. Unsorted, hits[0] is shard order, and picking the orphan would
+    # revoke the wrong task and recompute retry_count backwards -- breaking
+    # the monotonicity the supersession guard and the orphan reaper rely on.
+    # Sort by retry_count first (retry.py increments it on every resubmit),
+    # then recency; unmapped_type keeps this working on a venue whose
+    # template does not declare the field.
     query_json = {
         "query": {
             "bool": {
@@ -57,11 +66,25 @@ def query_es_required(job_id):
                     {"term": {"job.job_info.id": job_id}}
                 ]
             }
-        }
+        },
+        "sort": [
+            {"job.retry_count": {"order": "desc", "missing": "_last",
+                                 "unmapped_type": "long"}},
+            {"@timestamp": {"order": "desc", "unmapped_type": "date"}},
+        ],
+        "size": 1,
     }
     result = mozart_es.search(index=JOB_STATUS_CURRENT, body=query_json)
-    if result['hits']['total']['value'] == 0:
+    total = result['hits']['total']['value']
+    if total == 0:
         raise JobNotFoundError(f"job id {job_id} not found in OpenSearch")
+    if total > 1:
+        # visible in retry.log, so the orphan rate is observable from the
+        # retry side without running a separate audit
+        logger.warning(
+            f"job id {job_id} matched {total} status docs; retrying the "
+            f"newest attempt. The others are leftovers from earlier attempts."
+        )
     return result
 
 
@@ -83,41 +106,88 @@ def _resolve_index_members(index):
     """
     resp = mozart_es.es.indices.get_alias(name=index, expand_wildcards="open", ignore=[404])
     if isinstance(resp, dict) and "error" not in resp and len(resp) > 0:
-        return sorted(resp.keys())
+        # Ordering only -- every member is still visited, so this keeps no
+        # assumption about where the doc lives. job_failed goes last because
+        # it is the member a job-failed doc is being moved INTO: deleting it
+        # first would leave the rest of the sweep as a window in which a late
+        # in-flight write can re-create it.
+        return sorted(resp.keys(), key=lambda m: (m == "job_failed", m))
     logger.info(f"{index} is not an alias; treating it as a concrete index")
     return [index]
 
 
 @backoff.on_exception(backoff.expo, Exception, max_tries=10, max_value=64)
+def _sweep_members(index, _id, deleted_from, failed):
+    """Visit every member once, recording outcomes in the caller's lists.
+
+    One member must not be able to abort the sweep. The delete is spread over
+    every member of the alias, so aborting partway can leave the doc destroyed
+    where it mattered and the job never resubmitted -- the caller treats a
+    raised sweep as "do not resubmit". So a per-member failure is recorded and
+    the sweep carries on. Reachable ones are not exotic: 403 from an ISM
+    read-only block on an aged daily, 429 from a flood-stage watermark, 503
+    from a shard moving during a rolling restart. None of them say anything
+    about the member that actually holds the doc.
+
+    Raises only when nothing was deleted anywhere AND at least one member
+    failed, which is the safe case to retry: no doc has been destroyed yet, so
+    the caller's backoff can replay the whole sweep. `deleted_from` and
+    `failed` are owned by the caller precisely so they survive that replay --
+    a member emptied on attempt 1 answers not_found on attempt 2 and would
+    otherwise drop out of the result.
+    """
+    for member in _resolve_index_members(index):
+        if member in deleted_from:
+            continue                      # already emptied on an earlier pass
+        try:
+            res = mozart_es.delete_by_id(index=member, id=_id, ignore=[400, 404])
+        except Exception as e:
+            failed[member] = f"{type(e).__name__}: {e}"
+            logger.warning(f"Delete failed on {member} for {_id}: {failed[member]}")
+            continue
+        failed.pop(member, None)
+        if isinstance(res, dict) and res.get("result") == "deleted":
+            logger.info(f"Deleted job status doc {_id} from {member}")
+            deleted_from.append(member)
+        elif isinstance(res, dict) and res.get("status") in (400, 403, 429):
+            # closed, write-blocked or throttled: this member cannot be swept
+            # now, but it is not evidence about any other member
+            logger.warning(f"Skipped {member} for {_id}: {res.get('error')}")
+        else:
+            logger.info(f"No {_id} doc in {member}; nothing to delete.")
+    if failed and not deleted_from:
+        raise RuntimeError(
+            f"no member of {index} could be swept for {_id}: {failed}"
+        )
+
+
 def delete_by_id(index, _id):
     """Delete the doc id at EVERY concrete index behind `index`.
 
     Doc-ID deletes are realtime (translog), so unlike the previous
     search-then-delete-at-the-found-address, this cannot act on a stale view
-    of which member index currently holds the doc (the job-failed doc
-    moves from job_status-<date> to job_failed while the retry is running).
-    An index without the doc is a no-op (404). 400 is ignored too so a member
-    that closed between get_alias and the delete cannot sink the retry.
-    Anything else (403 in particular) raises: a permission problem must fail
-    the retry loudly, not silently leave the orphan class in place.
+    of which member index currently holds the doc (the job-failed doc moves
+    from job_status-<date> to job_failed while the retry is running).
 
     Returns the list of member indices a live doc was actually deleted from.
+    Raises only if nothing could be deleted anywhere, so the caller resubmits
+    whenever the doc was removed from at least one member and fails loudly
+    only when the sweep achieved nothing.
     """
     deleted_from = []
-    for member in _resolve_index_members(index):
-        res = mozart_es.delete_by_id(index=member, id=_id, ignore=[400, 404])
-        if isinstance(res, dict) and res.get("result") == "deleted":
-            logger.info(f"Deleted job status doc {_id} from {member}")
-            deleted_from.append(member)
-        elif isinstance(res, dict) and res.get("status") == 400:
-            logger.warning(f"Skipped {member} for {_id}: {res.get('error')}")
-        else:
-            logger.info(f"No {_id} doc in {member}; nothing to delete.")
+    failed = {}
+    _sweep_members(index, _id, deleted_from, failed)
+    if failed:
+        # something was deleted, so the resubmit goes ahead; say plainly what
+        # was left behind, because those members may still hold a copy
+        logger.error(
+            f"Deleted {_id} from {deleted_from} but could not sweep {sorted(failed)}: "
+            f"{failed}. A stale copy may remain there."
+        )
     if not deleted_from:
         # Doc not indexed anywhere yet at delete time. assert_doc_settled
-        # (hysds/es_util.py:24) makes this unexpected for the retry flow;
-        # a late in-flight write re-creating the doc afterward is a
-        # separate, write-side defect.
+        # makes this unexpected for the retry flow; a late in-flight write
+        # re-creating the doc afterward is a separate, write-side defect.
         logger.warning(f"{_id} not found in any index behind {index}; nothing deleted")
     return deleted_from
 
@@ -382,11 +452,18 @@ def resubmit_jobs(context):
     if info_msgs:
         create_info_message_files(msg=info_msgs, msg_details=info_msg_details)
 
-    if len(retry_job_ids) == 1:
-        if not_found_job_ids:
-            raise RuntimeError(f"job id {not_found_job_ids[0]} not found")
-        if errored_job_ids:
-            raise RuntimeError(f"failed to resubmit job id {errored_job_ids[0]}; see traceback in the log")
+    if not_found_job_ids and len(retry_job_ids) == 1:
+        raise RuntimeError(f"job id {not_found_job_ids[0]} not found")
+
+    # An errored job may have had its status doc deleted without a resubmit,
+    # so it must not exit 0. Figaro submits retry_job_id as a LIST even for a
+    # single job, and the old length gate let that case report job-completed
+    # while the job had silently vanished.
+    if errored_job_ids:
+        raise RuntimeError(
+            f"failed to resubmit {len(errored_job_ids)} of {len(retry_job_ids)} "
+            f"job id(s): {errored_job_ids}; see tracebacks in the log"
+        )
 
 
 if __name__ == "__main__":

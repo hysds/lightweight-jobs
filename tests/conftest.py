@@ -9,6 +9,7 @@ tests do not sleep through a real exponential backoff.
 """
 import os
 import sys
+import time
 import types
 from unittest.mock import MagicMock
 
@@ -25,16 +26,14 @@ def _stub(name, **attrs):
     return mod
 
 
-def _passthrough_decorator(*_a, **_k):
-    def deco(fn):
-        return fn
-    return deco
-
-
 mozart_es_mock = MagicMock(name="mozart_es")
 
-_stub("backoff", on_exception=_passthrough_decorator,
-      on_predicate=_passthrough_decorator, expo=object())
+# The REAL backoff library is used, not a passthrough stub: retry.py's retry
+# semantics are part of what these tests are checking, and a neutralised
+# decorator asserts every failure path as if it happened on the first attempt.
+# Only the waiting is removed, by stubbing time.sleep in the fixture below.
+import backoff  # noqa: F401,E402
+
 _stub("hysds")
 _app = types.SimpleNamespace(
     conf={"STATUS_ALIAS": "job_status",
@@ -58,6 +57,7 @@ _stub("utils", revoke=MagicMock(), create_info_message_files=MagicMock())
 @pytest.fixture()
 def retry_module(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)          # retry.log lands here
+    monkeypatch.setattr(time, "sleep", lambda *_a, **_k: None)  # real backoff, no waiting
     if REPO_ROOT not in sys.path:
         sys.path.insert(0, REPO_ROOT)
     sys.modules.pop("retry", None)       # fresh import per test

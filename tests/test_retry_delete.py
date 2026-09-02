@@ -58,7 +58,7 @@ def _delete_returns(mapping, default=NOT_FOUND):
     return _side_effect
 
 
-def _failed_doc(retry_count=None, stale_index=DAILY):
+def _failed_doc(retry_count=None, stale_index=DAILY, payload_id=PAYLOAD_ID):
     """A job-failed status doc shaped like the real INT-FWD orphans.
 
     `stale_index` is what the search reports; the doc has in fact already been
@@ -78,7 +78,7 @@ def _failed_doc(retry_count=None, stale_index=DAILY):
             "status": 255,
             "time_start": "2026-08-28T18:09:54.000Z",
             "time_end": "2026-08-28T18:10:06.000Z",
-            "job_payload": {"payload_task_id": PAYLOAD_ID},
+            "job_payload": {"payload_task_id": payload_id},
         },
     }
     if retry_count is not None:
@@ -88,8 +88,8 @@ def _failed_doc(retry_count=None, stale_index=DAILY):
             "total": {"value": 1},
             "hits": [{
                 "_index": stale_index,
-                "_id": PAYLOAD_ID,
-                "_source": {"uuid": OLD_TASK_ID, "payload_id": PAYLOAD_ID, "job": job},
+                "_id": payload_id,
+                "_source": {"uuid": OLD_TASK_ID, "payload_id": payload_id, "job": job},
             }],
         }
     }
@@ -118,11 +118,14 @@ def test_alias_resolves_and_every_member_is_swept(retry_module):
     es.es.indices.get_alias.assert_called_once_with(
         name=ALIAS, expand_wildcards="open", ignore=[404])
     swept = [c.kwargs["index"] for c in es.delete_by_id.call_args_list]
-    assert swept == sorted([DAILY, FAILED])
+    # job_failed is visited LAST: it is the member the doc is being moved
+    # into, so deleting it first would leave the rest of the sweep as a
+    # window for a late write to re-create it
+    assert swept == [DAILY, FAILED]
     for call in es.delete_by_id.call_args_list:
         assert call.kwargs["id"] == PAYLOAD_ID
         assert call.kwargs["ignore"] == [400, 404]
-    assert deleted_from == sorted([DAILY, FAILED])
+    assert deleted_from == [DAILY, FAILED]
 
 
 def test_hc640_doc_already_moved_to_job_failed_is_still_deleted(retry_module):
@@ -179,15 +182,74 @@ def test_closed_member_is_skipped_without_sinking_the_sweep(retry_module, caplog
     assert any("Skipped" in r.message and closed in r.message for r in caplog.records)
 
 
-def test_403_on_a_member_delete_propagates(retry_module):
-    """8a. A permission problem must not be swallowed as "nothing to delete"."""
+def test_nothing_deleted_and_a_member_failed_is_fatal(retry_module):
+    """8a. If no member could be swept, fail loudly: nothing was destroyed.
+
+    This is the safe case to raise on. The doc is still wherever it was, so
+    the caller declines to resubmit and an operator can retry by hand.
+    """
     es = retry_module.mozart_es
     _seed_location(es, (DAILY, FAILED))
     es.delete_by_id.side_effect = _delete_returns(
         {DAILY: NOT_FOUND, FAILED: AuthorizationException("403")})
 
-    with pytest.raises(AuthorizationException):
+    with pytest.raises(RuntimeError, match="could not be swept|could be swept"):
         retry_module.delete_by_id(ALIAS, PAYLOAD_ID)
+
+
+def test_a_member_failure_after_a_delete_does_not_abort_the_sweep(retry_module):
+    """The data-loss case: the doc IS deleted, so the resubmit must proceed.
+
+    The delete is spread over every alias member. If one member's failure
+    aborted the sweep, the caller would treat the whole retry as errored and
+    never resubmit -- while the doc had already been removed from the member
+    that held it. The job would vanish from Figaro with no way to recover its
+    parameters.
+    """
+    es = retry_module.mozart_es
+    _seed_location(es, (DAILY, FAILED))
+    es.delete_by_id.side_effect = _delete_returns(
+        {DAILY: AuthorizationException("403 read-only"), FAILED: DELETED})
+
+    deleted_from = retry_module.delete_by_id(ALIAS, PAYLOAD_ID)
+
+    assert deleted_from == [FAILED]
+    assert [c.kwargs["index"] for c in es.delete_by_id.call_args_list] == [DAILY, FAILED]
+
+
+def test_read_only_member_answering_403_is_skipped(retry_module, caplog):
+    """An ISM read-only block on an aged daily says nothing about job_failed."""
+    caplog.set_level(logging.INFO)
+    es = retry_module.mozart_es
+    blocked = "job_status-2026.01.01"
+    _seed_location(es, (blocked, DAILY, FAILED))
+    es.delete_by_id.side_effect = _delete_returns(
+        {blocked: {"error": {"type": "cluster_block_exception"}, "status": 403},
+         DAILY: NOT_FOUND, FAILED: DELETED})
+
+    deleted_from = retry_module.delete_by_id(ALIAS, PAYLOAD_ID)
+
+    assert deleted_from == [FAILED]
+    assert len(es.delete_by_id.call_args_list) == 3
+
+
+def test_deleted_from_survives_a_backoff_replay(retry_module):
+    """The sweep is replayed by the real backoff decorator; the result must
+    reflect the whole run, and a member emptied on an earlier pass must not be
+    revisited."""
+    es = retry_module.mozart_es
+    es.es.indices.get_alias.side_effect = [
+        ConnectionError("transport blip"),
+        _alias_map(DAILY, FAILED),
+    ]
+    es.search_by_id.return_value = [{"_index": DAILY, "_id": PAYLOAD_ID, "found": True}]
+    es.delete_by_id.side_effect = _delete_returns({DAILY: NOT_FOUND, FAILED: DELETED})
+
+    deleted_from = retry_module.delete_by_id(ALIAS, PAYLOAD_ID)
+
+    assert deleted_from == [FAILED]
+    assert es.es.indices.get_alias.call_count == 2
+    assert [c.kwargs["index"] for c in es.delete_by_id.call_args_list] == [DAILY, FAILED]
 
 
 def test_403_on_get_alias_propagates(retry_module):
@@ -270,3 +332,50 @@ def test_403_on_get_alias_fails_the_retry_without_resubmitting(retry_module):
     es.delete_by_id.assert_not_called()
     retry_module.log_job_status.assert_not_called()
     retry_module.run_job.apply_async.assert_not_called()
+
+
+def test_a_bulk_retry_with_one_errored_job_still_fails_loudly(retry_module):
+    """Figaro submits retry_job_id as a LIST, even for one job.
+
+    The old length gate only re-raised for a scalar, so on the list branch an
+    errored job wrote an info-message file and the retry job exited 0 --
+    reporting job-completed in Figaro for a job whose status doc may already
+    have been deleted with no resubmit.
+    """
+    es = retry_module.mozart_es
+    good, bad = "payload-good", "payload-bad"
+    es.search.side_effect = [_failed_doc(payload_id=bad), _failed_doc(payload_id=good)]
+    _seed_location(es, (DAILY, FAILED))
+
+    def _delete(index=None, id=None, **_kw):
+        if id == bad:
+            raise AuthorizationException("403 on every member")
+        return DELETED if index == FAILED else NOT_FOUND
+
+    es.delete_by_id.side_effect = _delete
+
+    with pytest.raises(RuntimeError, match=r"failed to resubmit 1 of 2"):
+        retry_module.resubmit_jobs(_context(retry_job_id=[bad, good]))
+
+    # the healthy job in the same batch was still resubmitted
+    retry_module.run_job.apply_async.assert_called_once()
+    assert retry_module.log_job_status.call_args.args[0]["payload_id"] == good
+
+
+def test_query_picks_the_newest_attempt_and_flags_duplicates(retry_module, caplog):
+    """job.job_info.id is shared across a payload's attempts, so an orphan and
+    the live attempt both match. Unsorted, hits[0] is shard order."""
+    caplog.set_level(logging.INFO)
+    es = retry_module.mozart_es
+    doc = _failed_doc()
+    doc["hits"]["total"]["value"] = 2
+    es.search.return_value = doc
+
+    retry_module.query_es_required("send_notify_msg-job_worker-large")
+
+    body = es.search.call_args.kwargs["body"]
+    assert body["size"] == 1
+    assert body["sort"][0]["job.retry_count"]["order"] == "desc"
+    assert body["sort"][0]["job.retry_count"]["unmapped_type"] == "long"
+    assert body["sort"][1]["@timestamp"]["order"] == "desc"
+    assert any("matched 2 status docs" in r.message for r in caplog.records)
