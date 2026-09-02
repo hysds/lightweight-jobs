@@ -19,8 +19,9 @@ FAILED = "job_failed"
 PAYLOAD_ID = "a40296c2-2921-4f07-8d03-ee0fc22be6a2"
 OLD_TASK_ID = "ba0f5f0e-6c9e-4a0e-9d3c-1f0f1f6f7a11"
 
-DELETED = {"_index": FAILED, "_id": PAYLOAD_ID, "result": "deleted"}
-NOT_FOUND = {"_id": PAYLOAD_ID, "result": "not_found"}
+DELETED = {"_index": FAILED, "_id": PAYLOAD_ID, "result": "deleted",
+           "_seq_no": 42, "_primary_term": 7}
+NOT_FOUND = {"_id": PAYLOAD_ID, "result": "not_found", "_seq_no": 41, "_primary_term": 7}
 CLOSED_400 = {"error": {"type": "index_closed_exception",
                         "reason": "closed"}, "status": 400}
 ALIAS_404 = {"error": "alias_not_found_exception", "status": 404}
@@ -58,18 +59,19 @@ def _delete_returns(mapping, default=NOT_FOUND):
     return _side_effect
 
 
-def _failed_doc(retry_count=None, stale_index=DAILY, payload_id=PAYLOAD_ID):
+def _failed_doc(retry_count=None, stale_index=DAILY, payload_id=PAYLOAD_ID,
+                job_id="send_notify_msg-job_worker-large"):
     """A job-failed status doc shaped like the real INT-FWD orphans.
 
     `stale_index` is what the search reports; the doc has in fact already been
     moved to `job_failed` by logstash (job_info.index == "job_failed").
     """
     job = {
-        "job_id": "send_notify_msg-job_worker-large",
+        "job_id": job_id,
         "type": "job-send_notify_msg:6.0.5",
         "priority": 4,
         "job_info": {
-            "id": "send_notify_msg-job_worker-large",
+            "id": job_id,
             "index": FAILED,
             "job_queue": "system-jobs-queue",
             "time_limit": 3600,
@@ -124,7 +126,7 @@ def test_alias_resolves_and_every_member_is_swept(retry_module):
     assert swept == [DAILY, FAILED]
     for call in es.delete_by_id.call_args_list:
         assert call.kwargs["id"] == PAYLOAD_ID
-        assert call.kwargs["ignore"] == [400, 404]
+        assert call.kwargs["ignore"] == [404, 400, 403, 429]
     assert deleted_from == [DAILY, FAILED]
 
 
@@ -150,7 +152,9 @@ def test_concrete_index_falls_back_to_itself(retry_module):
     deleted_from = retry_module.delete_by_id(DAILY, PAYLOAD_ID)
 
     assert deleted_from == [DAILY]
-    es.delete_by_id.assert_called_once_with(index=DAILY, id=PAYLOAD_ID, ignore=[400, 404])
+    es.delete_by_id.assert_called_once_with(
+        index=DAILY, id=PAYLOAD_ID, ignore=[404, 400, 403, 429]
+    )
 
 
 def test_nothing_found_anywhere_warns_and_returns_empty(retry_module, caplog):
@@ -388,7 +392,123 @@ def test_purge_uses_the_shared_sweep_not_a_search():
     import pathlib
 
     src = (pathlib.Path(__file__).resolve().parents[1] / "purge.py").read_text()
-    assert "delete_by_id" in src
-    assert "search_by_id" not in src, (
-        "purge.py is choosing a delete target from a search again"
+    assert "delete_by_id(es, es_index, payload_id)" in src, (
+        "purge.py must sweep the ALIAS; handing the sweep result['_index'] "
+        "resolves to that one concrete index and degenerates to the old delete"
     )
+    assert "search_by_id" not in src
+
+
+# --------------------------------------------------------------------------
+# skippable statuses, delete marks, batch outcomes
+# --------------------------------------------------------------------------
+
+def test_403_and_429_are_ignored_at_the_client_not_caught(retry_module):
+    """The hysds_commons connection wrapper backs off on bare Exception, so an
+    un-ignored 403 costs ten HTTP attempts and ~34 s before surfacing, and it
+    surfaces as a non-transport exception. Only `ignore` makes the skip branch
+    reachable, and only then does a blocked member cost one round trip."""
+    es = retry_module.mozart_es
+    blocked, throttled = "job_status-2026.01.01", "job_status-2026.02.01"
+    _seed_location(es, (blocked, throttled, DAILY, FAILED))
+    es.delete_by_id.side_effect = _delete_returns({
+        blocked: {"error": {"type": "cluster_block_exception"}, "status": 403},
+        throttled: {"error": {"type": "es_rejected_execution_exception"}, "status": 429},
+        DAILY: NOT_FOUND, FAILED: DELETED})
+
+    deleted_from = retry_module.delete_by_id(ALIAS, PAYLOAD_ID)
+
+    assert deleted_from == [FAILED]
+    for call in es.delete_by_id.call_args_list:
+        assert 403 in call.kwargs["ignore"] and 429 in call.kwargs["ignore"]
+
+
+def test_skipped_members_are_not_failures(retry_module, caplog):
+    """A skip must not populate `failed`, or every retry on an ISM read-only
+    venue logs the 'a stale copy may remain' ERROR on success."""
+    caplog.set_level(logging.INFO)
+    es = retry_module.mozart_es
+    blocked = "job_status-2026.01.01"
+    _seed_location(es, (blocked, FAILED))
+    es.delete_by_id.side_effect = _delete_returns(
+        {blocked: {"error": "blocked", "status": 403}, FAILED: DELETED})
+
+    retry_module.delete_by_id(ALIAS, PAYLOAD_ID)
+
+    assert not any(r.levelno >= logging.ERROR for r in caplog.records)
+
+
+def test_delete_marks_record_every_members_sequence_position(retry_module):
+    """Even a not_found delete is sequenced, so every member gets a mark. The
+    reaper compares a job_failed doc's own _seq_no against the job_failed mark
+    to tell indexing order exactly, which timestamps cannot."""
+    es = retry_module.mozart_es
+    _seed_location(es, (DAILY, FAILED))
+    es.delete_by_id.side_effect = _delete_returns({DAILY: NOT_FOUND, FAILED: DELETED})
+    marks = {}
+
+    retry_module.delete_by_id(ALIAS, PAYLOAD_ID, marks=marks)
+
+    assert marks == {
+        DAILY: {"seq_no": 41, "primary_term": 7},
+        FAILED: {"seq_no": 42, "primary_term": 7},
+    }
+
+
+def test_resubmitted_job_carries_the_delete_marks(retry_module):
+    es = retry_module.mozart_es
+    es.search.return_value = _failed_doc()
+    _seed_location(es, (DAILY, FAILED))
+    es.delete_by_id.side_effect = _delete_returns({DAILY: NOT_FOUND, FAILED: DELETED})
+
+    retry_module.resubmit_jobs(_context())
+
+    job = retry_module.log_job_status.call_args.args[0]["job"]
+    assert job["job_info"]["retry_delete"][FAILED] == {"seq_no": 42, "primary_term": 7}
+
+
+def test_all_not_found_and_nothing_resubmitted_raises(retry_module):
+    """Re-running a batch whose ids were swept and then errored: every id is
+    now not-found, and it used to exit 0 having resubmitted nothing."""
+    es = retry_module.mozart_es
+    es.search.return_value = {"hits": {"total": {"value": 0}, "hits": []}}
+
+    with pytest.raises(RuntimeError, match="not found and nothing was resubmitted"):
+        retry_module.resubmit_jobs(_context(retry_job_id=["gone-1", "gone-2"]))
+
+    retry_module.run_job.apply_async.assert_not_called()
+
+
+def test_not_found_inside_a_batch_that_did_work_is_benign(retry_module):
+    es = retry_module.mozart_es
+
+    def _search(index=None, body=None, **_kw):
+        # the not-found id is searched 4 times by the JobNotFoundError backoff
+        job_id = body["query"]["bool"]["must"][0]["term"]["job.job_info.id"]
+        if job_id == "gone":
+            return {"hits": {"total": {"value": 0}, "hits": []}}
+        return _failed_doc(payload_id="payload-good")
+
+    es.search.side_effect = _search
+    _seed_location(es, (DAILY, FAILED))
+    es.delete_by_id.side_effect = _delete_returns({DAILY: NOT_FOUND, FAILED: DELETED})
+
+    retry_module.resubmit_jobs(_context(retry_job_id=["gone", "good-job"]))   # no raise
+
+    retry_module.run_job.apply_async.assert_called_once()
+
+
+def test_batch_info_message_lists_the_outcome_sets(retry_module):
+    """An operator acting on a partial batch needs the succeeded set, and a
+    warning not to blindly re-run the same selection."""
+    es = retry_module.mozart_es
+    es.search.side_effect = [_failed_doc(retry_count=3, payload_id="spent", job_id="spent-job"),
+                             _failed_doc(payload_id="good", job_id="good-job")]
+    _seed_location(es, (DAILY, FAILED))
+    es.delete_by_id.side_effect = _delete_returns({DAILY: NOT_FOUND, FAILED: DELETED})
+
+    retry_module.resubmit_jobs(_context(retry_job_id=["spent-job", "good-job"], retry_count_max=3))
+
+    details = retry_module.create_info_message_files.call_args.kwargs["msg_details"]
+    assert "Resubmitted (1)" in details and '"good-job"' in details
+    assert "Skipped before any delete (1)" in details and '"spent-job"' in details

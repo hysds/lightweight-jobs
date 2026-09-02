@@ -154,12 +154,21 @@ def purge_products(query, component, operation, delete_from_obj_store=True):
             # swallowed, and success was logged while the doc survived. Unlike
             # the retry case there is no resubmit to mask it -- the job simply
             # could not be purged. Sweep every member instead.
-            deleted_from = delete_by_id(es, index, payload_id)
+            # Sweep the ALIAS (es_index), not result["_index"]: that is the
+            # concrete index off the search hit, and handing it to the sweep
+            # resolves to itself and degenerates to the old single delete.
+            try:
+                deleted_from = delete_by_id(es, es_index, payload_id)
+            except Exception as e:
+                # the sweep raises only when nothing could be deleted; one
+                # un-purgeable job must not abort the rest of the batch
+                logger.error('Could not purge %s from %s: %s', payload_id, es_index, e)
+                continue
             if deleted_from:
                 logger.info('Removed %s from: %s', payload_id, ', '.join(deleted_from))
             else:
                 logger.warning('No %s doc in any member of %s; nothing purged',
-                               payload_id, index)
+                               payload_id, es_index)
         logger.info('Finished.')
 
 

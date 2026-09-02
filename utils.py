@@ -93,42 +93,67 @@ def resolve_index_members(es, index):
     return [index]
 
 
+# Per-member responses the sweep treats as "this member cannot be swept right
+# now, and that says nothing about any other member": 400 for a closed index,
+# 403 for an index.blocks.write set by ISM on an aged daily AND for a
+# flood-stage disk watermark (which is 403, not 429), 429 for throttling.
+# They must be in `ignore` rather than caught: the hysds_commons connection
+# wrapper backs off on bare Exception, so an un-ignored 403 costs ten HTTP
+# attempts and ~34 s before it surfaces, and it surfaces as a non-transport
+# exception the status branch below never sees.
+SKIPPABLE_STATUSES = (400, 403, 429)
+
+
 @backoff.on_exception(backoff.expo, Exception, max_tries=10, max_value=64)
-def sweep_members(es, index, _id, deleted_from, failed):
-    """Visit every member once, recording outcomes in the caller's lists.
+def sweep_members(es, index, _id, deleted_from, failed, marks=None):
+    """Visit every member once, recording outcomes in the caller's containers.
 
     One member must not be able to abort the sweep. The delete is spread over
     every member of the alias, so aborting partway can leave the doc destroyed
     where it mattered and the job never resubmitted -- the caller treats a
     raised sweep as "do not resubmit". So a per-member failure is recorded and
-    the sweep carries on. Reachable ones are not exotic: 403 from an ISM
-    read-only block on an aged daily, 429 from a flood-stage watermark, 503
-    from a shard moving during a rolling restart. None of them say anything
-    about the member that actually holds the doc.
+    the sweep carries on; a skippable status is not even a failure.
 
     Raises only when nothing was deleted anywhere AND at least one member
     failed, which is the safe case to retry: no doc has been destroyed yet, so
-    the caller's backoff can replay the whole sweep. `deleted_from` and
-    `failed` are owned by the caller precisely so they survive that replay --
-    a member emptied on attempt 1 answers not_found on attempt 2 and would
-    otherwise drop out of the result.
+    the caller's backoff can replay the whole sweep. That is also why a replay
+    can never begin with `deleted_from` populated. The containers are owned by
+    the caller so a replay reports the whole run, and `failed` is trimmed to
+    the current member set so an entry for a member that has since left the
+    alias cannot linger.
+
+    `marks`, if given, collects each member's delete position:
+    {member: {"seq_no", "primary_term"}}. A delete response carries them even
+    when the result is not_found, because the no-op is still sequenced. The
+    caller stamps them on the resubmitted job so a later reader can tell,
+    exactly and without a clock, whether a doc that reappears under this _id
+    was indexed before or after this sweep.
     """
-    for member in resolve_index_members(es, index):
-        if member in deleted_from:
-            continue                      # already emptied on an earlier pass
+    members = resolve_index_members(es, index)
+    for gone in [m for m in failed if m not in members]:
+        failed.pop(gone, None)
+    for member in members:
         try:
-            res = es.delete_by_id(index=member, id=_id, ignore=[400, 404])
+            res = es.delete_by_id(
+                index=member, id=_id, ignore=[404, *SKIPPABLE_STATUSES]
+            )
         except Exception as e:
             failed[member] = f"{type(e).__name__}: {e}"
             logging.warning(f"Delete failed on {member} for {_id}: {failed[member]}")
             continue
         failed.pop(member, None)
-        if isinstance(res, dict) and res.get("result") == "deleted":
+        if not isinstance(res, dict):
+            logging.info(f"No {_id} doc in {member}; nothing to delete.")
+            continue
+        if marks is not None and res.get("_seq_no") is not None:
+            marks[member] = {
+                "seq_no": res["_seq_no"],
+                "primary_term": res.get("_primary_term"),
+            }
+        if res.get("result") == "deleted":
             logging.info(f"Deleted job status doc {_id} from {member}")
             deleted_from.append(member)
-        elif isinstance(res, dict) and res.get("status") in (400, 403, 429):
-            # closed, write-blocked or throttled: this member cannot be swept
-            # now, but it is not evidence about any other member
+        elif res.get("status") in SKIPPABLE_STATUSES:
             logging.warning(f"Skipped {member} for {_id}: {res.get('error')}")
         else:
             logging.info(f"No {_id} doc in {member}; nothing to delete.")
@@ -138,7 +163,7 @@ def sweep_members(es, index, _id, deleted_from, failed):
         )
 
 
-def delete_by_id(es, index, _id):
+def delete_by_id(es, index, _id, marks=None):
     """Delete the doc id at EVERY concrete index behind `index`.
 
     Doc-ID deletes are realtime (translog), so unlike the previous
@@ -149,11 +174,12 @@ def delete_by_id(es, index, _id):
     Returns the list of member indices a live doc was actually deleted from.
     Raises only if nothing could be deleted anywhere, so the caller resubmits
     whenever the doc was removed from at least one member and fails loudly
-    only when the sweep achieved nothing.
+    only when the sweep achieved nothing. Pass a dict as `marks` to receive
+    each member's delete position; see sweep_members.
     """
     deleted_from = []
     failed = {}
-    sweep_members(es, index, _id, deleted_from, failed)
+    sweep_members(es, index, _id, deleted_from, failed, marks=marks)
     if failed:
         # something was deleted, so the resubmit goes ahead; say plainly what
         # was left behind, because those members may still hold a copy
