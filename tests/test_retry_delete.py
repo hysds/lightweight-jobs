@@ -455,6 +455,28 @@ def test_all_skipped_sweep_raises_instead_of_reading_as_absent(retry_module):
     assert es.delete_by_id.call_count == 10 * 2, "every backoff attempt re-swept both"
 
 
+def test_a_block_that_clears_on_replay_is_forgotten(retry_module, caplog):
+    """A member skipped on one attempt and answered on the next must leave
+    `skipped`, or the sweep would raise after it succeeded."""
+    caplog.set_level(logging.INFO)
+    es = retry_module.mozart_es
+    _seed_location(es, (DAILY, FAILED))
+    blocked = {"error": "cluster_block_exception", "status": 429}
+    passes = {"n": 0}
+
+    def side_effect(index=None, id=None, **_kwargs):
+        if index == DAILY:                 # swept first; counts the passes
+            passes["n"] += 1
+        if passes["n"] <= 1:               # first pass: everything blocked
+            return blocked
+        return DELETED if index == FAILED else NOT_FOUND
+    es.delete_by_id.side_effect = side_effect
+
+    assert retry_module.delete_by_id(ALIAS, PAYLOAD_ID) == [FAILED]
+    assert es.delete_by_id.call_count == 4
+    assert not any(r.levelno >= logging.ERROR for r in caplog.records)
+
+
 def test_all_not_found_sweep_is_still_a_clean_miss(retry_module):
     """The all-404 case #43/#44 required stays non-fatal: no member was
     unanswered, so nothing is left to retry."""
@@ -543,3 +565,8 @@ def test_batch_info_message_lists_the_outcome_sets(retry_module):
     details = retry_module.create_info_message_files.call_args.kwargs["msg_details"]
     assert "Resubmitted (1)" in details and '"good-job"' in details
     assert "Skipped before any delete (1)" in details and '"spent-job"' in details
+    assert "Do not blindly re-run" in details
+    # job_worker runs each summary line through get_short_error, which
+    # collapses anything over 35 characters; the summary must survive it
+    summary = retry_module.create_info_message_files.call_args.kwargs["msg"]
+    assert all(len(line) <= 35 for line in summary), summary
