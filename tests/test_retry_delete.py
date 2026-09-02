@@ -379,3 +379,16 @@ def test_query_picks_the_newest_attempt_and_flags_duplicates(retry_module, caplo
     assert body["sort"][0]["job.retry_count"]["unmapped_type"] == "long"
     assert body["sort"][1]["@timestamp"]["order"] == "desc"
     assert any("matched 2 status docs" in r.message for r in caplog.records)
+
+
+def test_purge_uses_the_shared_sweep_not_a_search():
+    """purge.py carried the identical defect: it chose its delete target from
+    a near-realtime search's _index. Unlike the retry case nothing masked it,
+    so the job could not be purged while success was logged."""
+    import pathlib
+
+    src = (pathlib.Path(__file__).resolve().parents[1] / "purge.py").read_text()
+    assert "delete_by_id" in src
+    assert "search_by_id" not in src, (
+        "purge.py is choosing a delete target from a search again"
+    )

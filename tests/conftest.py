@@ -51,7 +51,10 @@ _stub("hysds.orchestrator", run_job=MagicMock())
 _stub("hysds.log_utils", log_job_status=MagicMock())
 _stub("hysds.utils", datetime_iso_naive=lambda: "2026-01-01T00:00:00")
 _stub("celery", uuid=lambda: "new-task-uuid")
-_stub("utils", revoke=MagicMock(), create_info_message_files=MagicMock())
+# utils is NOT stubbed: retry.py's sweep lives there now, and stubbing the
+# module would replace the code under test with a mock. Its own imports are
+# satisfiable here (backoff, redis, and the stubbed hysds.celery), and the
+# fixture rebinds the two side-effecting helpers per test.
 
 
 @pytest.fixture()
