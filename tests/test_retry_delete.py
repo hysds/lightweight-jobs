@@ -438,6 +438,34 @@ def test_skipped_members_are_not_failures(retry_module, caplog):
     assert not any(r.levelno >= logging.ERROR for r in caplog.records)
 
 
+def test_all_skipped_sweep_raises_instead_of_reading_as_absent(retry_module):
+    """A flood-stage watermark stamps read_only_allow_delete on every index with
+    a shard on the full node, job_failed included, and a doc DELETE then answers
+    429 everywhere. Nothing was deleted and the doc is still there, so this
+    must raise (retryable, nothing destroyed) rather than return [] and let
+    the caller resubmit over the doc it failed to remove."""
+    es = retry_module.mozart_es
+    _seed_location(es, (DAILY, FAILED))
+    blocked = {"error": "cluster_block_exception", "status": 429}
+    es.delete_by_id.side_effect = _delete_returns({DAILY: blocked, FAILED: blocked})
+
+    with pytest.raises(RuntimeError, match="skipped="):
+        retry_module.delete_by_id(ALIAS, PAYLOAD_ID)
+
+    assert es.delete_by_id.call_count == 10 * 2, "every backoff attempt re-swept both"
+
+
+def test_all_not_found_sweep_is_still_a_clean_miss(retry_module):
+    """The all-404 case #43/#44 required stays non-fatal: no member was
+    unanswered, so nothing is left to retry."""
+    es = retry_module.mozart_es
+    _seed_location(es, (DAILY, FAILED))
+    es.delete_by_id.side_effect = _delete_returns({DAILY: NOT_FOUND, FAILED: NOT_FOUND})
+
+    assert retry_module.delete_by_id(ALIAS, PAYLOAD_ID) == []
+    assert es.delete_by_id.call_count == 2
+
+
 def test_delete_marks_record_every_members_sequence_position(retry_module):
     """Even a not_found delete is sequenced, so every member gets a mark. The
     reaper compares a job_failed doc's own _seq_no against the job_failed mark

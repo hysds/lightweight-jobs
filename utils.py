@@ -105,17 +105,22 @@ SKIPPABLE_STATUSES = (400, 403, 429)
 
 
 @backoff.on_exception(backoff.expo, Exception, max_tries=10, max_value=64)
-def sweep_members(es, index, _id, deleted_from, failed, marks=None):
+def sweep_members(es, index, _id, deleted_from, failed, marks=None, skipped=None):
     """Visit every member once, recording outcomes in the caller's containers.
 
     One member must not be able to abort the sweep. The delete is spread over
     every member of the alias, so aborting partway can leave the doc destroyed
     where it mattered and the job never resubmitted -- the caller treats a
     raised sweep as "do not resubmit". So a per-member failure is recorded and
-    the sweep carries on; a skippable status is not even a failure.
+    the sweep carries on. A skippable status (a 403 block, a 429 flood-stage
+    watermark) is recorded in `skipped`, apart from `failed`: it does not
+    raise the stale-copy ERROR when something else was deleted, but a member
+    that could not be asked is never mistaken for one that confirmed the doc
+    absent.
 
     Raises only when nothing was deleted anywhere AND at least one member
-    failed, which is the safe case to retry: no doc has been destroyed yet, so
+    failed or was skipped, which is the safe case to retry: no doc has been
+    destroyed yet, so
     the caller's backoff can replay the whole sweep. That is also why a replay
     can never begin with `deleted_from` populated. The containers are owned by
     the caller so a replay reports the whole run, and `failed` is trimmed to
@@ -129,9 +134,12 @@ def sweep_members(es, index, _id, deleted_from, failed, marks=None):
     exactly and without a clock, whether a doc that reappears under this _id
     was indexed before or after this sweep.
     """
+    if skipped is None:
+        skipped = {}
     members = resolve_index_members(es, index)
-    for gone in [m for m in failed if m not in members]:
-        failed.pop(gone, None)
+    for outcomes in (failed, skipped):
+        for gone in [m for m in outcomes if m not in members]:
+            outcomes.pop(gone, None)
     for member in members:
         try:
             res = es.delete_by_id(
@@ -142,6 +150,7 @@ def sweep_members(es, index, _id, deleted_from, failed, marks=None):
             logging.warning(f"Delete failed on {member} for {_id}: {failed[member]}")
             continue
         failed.pop(member, None)
+        skipped.pop(member, None)
         if not isinstance(res, dict):
             logging.info(f"No {_id} doc in {member}; nothing to delete.")
             continue
@@ -157,12 +166,19 @@ def sweep_members(es, index, _id, deleted_from, failed, marks=None):
             logging.info(f"Deleted job status doc {_id} from {member}")
             deleted_from.append(member)
         elif res.get("status") in SKIPPABLE_STATUSES:
-            logging.warning(f"Skipped {member} for {_id}: {res.get('error')}")
+            skipped[member] = f"{res.get('status')}: {res.get('error')}"
+            logging.warning(f"Skipped {member} for {_id}: {skipped[member]}")
         else:
             logging.info(f"No {_id} doc in {member}; nothing to delete.")
-    if failed and not deleted_from:
+    if (failed or skipped) and not deleted_from:
+        # Nothing destroyed and at least one member unanswered: retryable. An
+        # all-blocked sweep (a flood-stage watermark blocks job_failed too)
+        # must not read as a clean miss, or the caller resubmits over a doc
+        # that is still there and manufactures the orphan this sweep exists
+        # to remove.
         raise RuntimeError(
-            f"no member of {index} could be swept for {_id}: {failed}"
+            f"no member of {index} could be swept for {_id}: "
+            f"failed={failed} skipped={skipped}"
         )
 
 
@@ -175,14 +191,16 @@ def delete_by_id(es, index, _id, marks=None):
     from job_status-<date> to job_failed while the retry is running).
 
     Returns the list of member indices a live doc was actually deleted from.
-    Raises only if nothing could be deleted anywhere, so the caller resubmits
-    whenever the doc was removed from at least one member and fails loudly
-    only when the sweep achieved nothing. Pass a list as `marks` to receive
+    Raises only if nothing could be deleted anywhere and some member failed or
+    was skipped, so the caller resubmits whenever the doc was removed from at
+    least one member, proceeds on a genuine all-not-found, and fails loudly
+    when the sweep could not establish either. Pass a list as `marks` to receive
     each member's delete position; see sweep_members.
     """
     deleted_from = []
     failed = {}
-    sweep_members(es, index, _id, deleted_from, failed, marks=marks)
+    skipped = {}
+    sweep_members(es, index, _id, deleted_from, failed, marks=marks, skipped=skipped)
     if failed:
         # something was deleted, so the resubmit goes ahead; say plainly what
         # was left behind, because those members may still hold a copy

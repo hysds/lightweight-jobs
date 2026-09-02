@@ -378,14 +378,21 @@ def resubmit_jobs(context):
         # The outcome sets, so an operator can act on a partial batch. Do NOT
         # blindly re-run the same selection: that revokes the ids that already
         # succeeded and increments their retry_count again.
+        # The summary line is kept under 35 characters: job_worker runs each
+        # one through get_short_error, which collapses anything longer. The
+        # breakdown and the warning go in the details file, which survives.
+        not_resubmitted = (len(skipped_job_ids) + len(not_found_job_ids)
+                           + len(errored_job_ids))
         info_msgs.append(
-            f"Batch retry: {len(resubmitted_job_ids)} resubmitted, "
-            f"{len(skipped_job_ids)} skipped, {len(not_found_job_ids)} not found, "
-            f"{len(errored_job_ids)} errored. Do not blindly re-run the same "
-            f"selection; see details."
+            f"Batch: {len(resubmitted_job_ids)} ok, {not_resubmitted} not; details"
         )
         info_msg_details += (
-            f"\n\nResubmitted ({len(resubmitted_job_ids)}): "
+            f"\n\nBatch retry: {len(resubmitted_job_ids)} resubmitted, "
+            f"{len(skipped_job_ids)} skipped, {len(not_found_job_ids)} not found, "
+            f"{len(errored_job_ids)} errored. Do not blindly re-run the same "
+            f"selection: that revokes the ids that already succeeded and "
+            f"increments their retry_count again."
+            f"\nResubmitted ({len(resubmitted_job_ids)}): "
             f"{json.dumps(resubmitted_job_ids)}"
             f"\nSkipped before any delete ({len(skipped_job_ids)}): "
             f"{json.dumps(skipped_job_ids)}"
