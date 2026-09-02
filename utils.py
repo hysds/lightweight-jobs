@@ -146,10 +146,13 @@ def sweep_members(es, index, _id, deleted_from, failed, marks=None):
             logging.info(f"No {_id} doc in {member}; nothing to delete.")
             continue
         if marks is not None and res.get("_seq_no") is not None:
-            marks[member] = {
+            # A list, not a dict keyed by member: daily names carry dots, and
+            # dynamic mapping would expand each one into a fresh object path.
+            marks.append({
+                "index": member,
                 "seq_no": res["_seq_no"],
                 "primary_term": res.get("_primary_term"),
-            }
+            })
         if res.get("result") == "deleted":
             logging.info(f"Deleted job status doc {_id} from {member}")
             deleted_from.append(member)

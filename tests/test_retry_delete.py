@@ -464,7 +464,10 @@ def test_resubmitted_job_carries_the_delete_marks(retry_module):
     retry_module.resubmit_jobs(_context())
 
     job = retry_module.log_job_status.call_args.args[0]["job"]
-    assert job["job_info"]["retry_delete"][FAILED] == {"seq_no": 42, "primary_term": 7}
+    marks = job["job_info"]["retry_delete"]
+    assert {"index": FAILED, "seq_no": 42, "primary_term": 7} in marks
+    # A list of flat entries, so the mapping never grows with the alias.
+    assert all(set(m) == {"index", "seq_no", "primary_term"} for m in marks)
 
 
 def test_all_not_found_and_nothing_resubmitted_raises(retry_module):

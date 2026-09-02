@@ -289,7 +289,7 @@ def resubmit_jobs(context):
             # alias-wide and realtime, so a job-failed doc that logstash has
             # already moved out of the dated index is still deleted.
             # A duplicate surviving this is the late-write variant.
-            delete_marks = {}
+            delete_marks = []
             deleted_from = delete_by_id(JOB_STATUS_CURRENT, _id, marks=delete_marks)
             # Where each member's delete landed in its shard's sequence. The
             # orphan reaper compares a job_failed doc's own _seq_no against
@@ -297,6 +297,7 @@ def resubmit_jobs(context):
             # indexed before this sweep (the delete missed it) or after it
             # (a late write re-created it). Timestamps cannot answer that:
             # they say when a write was issued, not when it was indexed.
+            # One {index, seq_no, primary_term} entry per swept member.
             job_json['job_info']['retry_delete'] = delete_marks
 
             # check if new queues, soft time limit, and time limit values were set
