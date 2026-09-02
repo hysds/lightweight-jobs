@@ -1,4 +1,4 @@
-"""HC-640: retry.py must delete the old status doc wherever it actually lives.
+"""retry.py must delete the old status doc wherever it actually lives.
 
 The defect these tests lock down: retry.py located the doc with a
 near-realtime `_search` and then deleted only at the `_index` that search
@@ -37,7 +37,7 @@ def _alias_map(*members):
 def _seed_location(es, members, stale_hit=None):
     """Seed BOTH addressing paths for the same doc.
 
-    `get_alias` is what the fix reads; `search_by_id` is what the pre-HC-640
+    `get_alias` is what the fix reads; `search_by_id` is what the previous
     code read. Seeding the old path too means these tests fail against the
     old code on the discriminating assertion (it deleted only at the stale
     `_index`) rather than on a mock that was never configured.
@@ -126,7 +126,7 @@ def test_alias_resolves_and_every_member_is_swept(retry_module):
 
 
 def test_hc640_doc_already_moved_to_job_failed_is_still_deleted(retry_module):
-    """2. The HC-640 scenario: gone from the daily, present in job_failed."""
+    """2. The stale-read scenario: gone from the daily, present in job_failed."""
     es = retry_module.mozart_es
     _seed_location(es, (DAILY, FAILED))
     es.delete_by_id.side_effect = _delete_returns({DAILY: NOT_FOUND, FAILED: DELETED})
@@ -151,7 +151,7 @@ def test_concrete_index_falls_back_to_itself(retry_module):
 
 
 def test_nothing_found_anywhere_warns_and_returns_empty(retry_module, caplog):
-    """4. No doc in any member: warn (HC-648 territory), do not raise."""
+    """4. No doc in any member: warn (write-side defect), do not raise."""
     caplog.set_level(logging.INFO)
     es = retry_module.mozart_es
     _seed_location(es, (DAILY, FAILED), stale_hit={"found": False})

@@ -69,7 +69,7 @@ def _resolve_index_members(index):
     """Return the concrete OPEN indices behind an alias, or [index] if not an alias.
 
     Cluster metadata, not a search: immune to the refresh_interval staleness
-    (HC-640) that a _search-based location lookup hits when logstash moves a
+    that a _search-based location lookup hits when logstash moves a
     job-failed doc between the alias's member indices. expand_wildcards="open"
     keeps closed members out of the sweep (an ISM policy that closes
     job_status dailies before deleting them can leave half the alias closed)
@@ -94,7 +94,7 @@ def delete_by_id(index, _id):
 
     Doc-ID deletes are realtime (translog), so unlike the previous
     search-then-delete-at-the-found-address, this cannot act on a stale view
-    of which member index currently holds the doc (HC-640: the job-failed doc
+    of which member index currently holds the doc (the job-failed doc
     moves from job_status-<date> to job_failed while the retry is running).
     An index without the doc is a no-op (404). 400 is ignored too so a member
     that closed between get_alias and the delete cannot sink the retry.
@@ -116,7 +116,8 @@ def delete_by_id(index, _id):
     if not deleted_from:
         # Doc not indexed anywhere yet at delete time. assert_doc_settled
         # (hysds/es_util.py:24) makes this unexpected for the retry flow;
-        # a late in-flight write re-creating the doc afterward is HC-648.
+        # a late in-flight write re-creating the doc afterward is a
+        # separate, write-side defect.
         logger.warning(f"{_id} not found in any index behind {index}; nothing deleted")
     return deleted_from
 
@@ -301,8 +302,8 @@ def resubmit_jobs(context):
 
             # delete the old job status doc everywhere it lives: the sweep is
             # alias-wide and realtime, so a job-failed doc that logstash has
-            # already moved out of the dated index is still deleted (HC-640).
-            # A duplicate surviving this is the late-write variant, HC-648.
+            # already moved out of the dated index is still deleted.
+            # A duplicate surviving this is the late-write variant.
             deleted_from = delete_by_id(JOB_STATUS_CURRENT, _id)
 
             # check if new queues, soft time limit, and time limit values were set
@@ -323,7 +324,7 @@ def resubmit_jobs(context):
 
             # Before re-queueing, check to see if the job was under the job_failed index. If so, need to
             # move it back to job_status. Decide from the realtime delete sweep
-            # as well, not only the search's (possibly stale, HC-640) view of _index.
+            # as well, not only the search's (possibly stale) view of _index.
             if index.startswith("job_failed") or any(m.startswith("job_failed") for m in deleted_from):
                 current_time = datetime.now(timezone.utc)
                 job_json['job_info']['index'] = f"job_status-{current_time.strftime('%Y.%m.%d')}"
