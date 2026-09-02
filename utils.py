@@ -122,8 +122,8 @@ def sweep_members(es, index, _id, deleted_from, failed, marks=None):
     the current member set so an entry for a member that has since left the
     alias cannot linger.
 
-    `marks`, if given, collects each member's delete position:
-    {member: {"seq_no", "primary_term"}}. A delete response carries them even
+    `marks`, if given, is a list that collects each member's delete position
+    as {"index", "seq_no", "primary_term"}. A delete response carries them even
     when the result is not_found, because the no-op is still sequenced. The
     caller stamps them on the resubmitted job so a later reader can tell,
     exactly and without a clock, whether a doc that reappears under this _id
@@ -177,7 +177,7 @@ def delete_by_id(es, index, _id, marks=None):
     Returns the list of member indices a live doc was actually deleted from.
     Raises only if nothing could be deleted anywhere, so the caller resubmits
     whenever the doc was removed from at least one member and fails loudly
-    only when the sweep achieved nothing. Pass a dict as `marks` to receive
+    only when the sweep achieved nothing. Pass a list as `marks` to receive
     each member's delete position; see sweep_members.
     """
     deleted_from = []

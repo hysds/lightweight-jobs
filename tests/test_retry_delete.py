@@ -445,14 +445,14 @@ def test_delete_marks_record_every_members_sequence_position(retry_module):
     es = retry_module.mozart_es
     _seed_location(es, (DAILY, FAILED))
     es.delete_by_id.side_effect = _delete_returns({DAILY: NOT_FOUND, FAILED: DELETED})
-    marks = {}
+    marks = []
 
     retry_module.delete_by_id(ALIAS, PAYLOAD_ID, marks=marks)
 
-    assert marks == {
-        DAILY: {"seq_no": 41, "primary_term": 7},
-        FAILED: {"seq_no": 42, "primary_term": 7},
-    }
+    assert marks == [
+        {"index": DAILY, "seq_no": 41, "primary_term": 7},
+        {"index": FAILED, "seq_no": 42, "primary_term": 7},
+    ]
 
 
 def test_resubmitted_job_carries_the_delete_marks(retry_module):
