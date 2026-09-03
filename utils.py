@@ -1,4 +1,5 @@
 #!/bin/env python
+import json
 import logging
 
 import backoff
@@ -180,6 +181,57 @@ def sweep_members(es, index, _id, deleted_from, failed, marks=None, skipped=None
             f"no member of {index} could be swept for {_id}: "
             f"failed={failed} skipped={skipped}"
         )
+
+
+def bulk_delete_by_id(es, index, _id):
+    """Delete the doc id at every member of `index` in ONE bulk request.
+
+    Same outcome as delete_by_id and the same rule about when to raise, at one
+    round trip per document instead of one per member. purge.py walks a
+    selection serially, so at a hundred alias members the per-member sweep
+    costs a hundred mostly no-op round trips per job; a five thousand job
+    purge was measured at about 65 minutes of them.
+
+    The retry path deliberately keeps the per-member sweep: it needs each
+    member's delete position recorded in order, and it is the path that must
+    not change shape late.
+
+    Returns the member indices a live doc was actually deleted from.
+    """
+    members = resolve_index_members(es, index)
+    body = "".join(
+        json.dumps({"delete": {"_index": m, "_id": _id}}) + "\n" for m in members
+    )
+    res = es.es.bulk(body=body)
+    deleted_from, failed, skipped = [], {}, {}
+    for item in res.get("items", []):
+        d = item.get("delete", {})
+        member = d.get("_index")
+        status = d.get("status")
+        if d.get("result") == "deleted":
+            deleted_from.append(member)
+            logging.info(f"Deleted job status doc {_id} from {member}")
+        elif d.get("result") == "not_found" or status == 404:
+            logging.info(f"No {_id} doc in {member}; nothing to delete.")
+        elif status in SKIPPABLE_STATUSES:
+            skipped[member] = f"{status}: {d.get('error')}"
+            logging.warning(f"Skipped {member} for {_id}: {skipped[member]}")
+        else:
+            failed[member] = f"{status}: {d.get('error')}"
+            logging.warning(f"Delete failed on {member} for {_id}: {failed[member]}")
+    if (failed or skipped) and not deleted_from:
+        raise RuntimeError(
+            f"no member of {index} could be swept for {_id}: "
+            f"failed={failed} skipped={skipped}"
+        )
+    if failed:
+        logging.error(
+            f"Deleted {_id} from {deleted_from} but could not sweep {sorted(failed)}: "
+            f"{failed}. A stale copy may remain there."
+        )
+    if not deleted_from:
+        logging.warning(f"{_id} not found in any index behind {index}; nothing deleted")
+    return deleted_from
 
 
 def delete_by_id(es, index, _id, marks=None):

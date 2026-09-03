@@ -8,7 +8,7 @@ from multiprocessing import Pool
 import osaka.main
 from hysds.celery import app
 from hysds.es_util import get_mozart_es, get_grq_es
-from utils import create_info_message_files, delete_by_id, revoke
+from utils import bulk_delete_by_id, create_info_message_files, revoke
 
 LOG_FILE_NAME = 'purge.log'
 log_format = "[%(asctime)s: %(levelname)s/%(funcName)s] %(message)s"
@@ -157,8 +157,11 @@ def purge_products(query, component, operation, delete_from_obj_store=True):
             # Sweep the ALIAS (es_index), not result["_index"]: that is the
             # concrete index off the search hit, and handing it to the sweep
             # resolves to itself and degenerates to the old single delete.
+            # One bulk request per job rather than one delete per member:
+            # purge walks its selection serially, so the per-member cost is
+            # multiplied by the size of the purge.
             try:
-                deleted_from = delete_by_id(es, es_index, payload_id)
+                deleted_from = bulk_delete_by_id(es, es_index, payload_id)
             except Exception as e:
                 # the sweep raises only when nothing could be deleted; one
                 # un-purgeable job must not abort the rest of the batch

@@ -392,11 +392,63 @@ def test_purge_uses_the_shared_sweep_not_a_search():
     import pathlib
 
     src = (pathlib.Path(__file__).resolve().parents[1] / "purge.py").read_text()
-    assert "delete_by_id(es, es_index, payload_id)" in src, (
+    assert "bulk_delete_by_id(es, es_index, payload_id)" in src, (
         "purge.py must sweep the ALIAS; handing the sweep result['_index'] "
         "resolves to that one concrete index and degenerates to the old delete"
     )
     assert "search_by_id" not in src
+    # the shadowing bug the rewrite also removed: the old inner loop rebound
+    # both `results` and `result` from the outer loop
+    assert "results = es.search_by_id" not in src
+
+
+def _bulk_items(mapping):
+    """Shape a bulk response the way OpenSearch returns one."""
+    return {"items": [{"delete": dict({"_index": m, "_id": PAYLOAD_ID}, **v)}
+                      for m, v in mapping.items()]}
+
+
+def test_bulk_delete_visits_every_member_in_one_request(retry_module):
+    """purge walks its selection serially, so a per-member sweep multiplies
+    the round trips by the size of the purge. One bulk request per job."""
+    import utils
+    es = retry_module.mozart_es
+    _seed_location(es, (DAILY, FAILED))
+    es.es.bulk.return_value = _bulk_items({
+        DAILY: {"result": "not_found", "status": 404},
+        FAILED: {"result": "deleted", "status": 200}})
+
+    assert utils.bulk_delete_by_id(es, ALIAS, PAYLOAD_ID) == [FAILED]
+    assert es.es.bulk.call_count == 1
+    body = es.es.bulk.call_args.kwargs["body"]
+    assert body.count('"delete"') == 2, "one action line per alias member"
+    assert body.rstrip().endswith('"_index": "job_failed", "_id": "%s"}}' % PAYLOAD_ID), \
+        "job_failed is still swept last, as it is the member the doc moves into"
+
+
+def test_bulk_delete_raises_when_every_member_is_blocked(retry_module):
+    """Same rule as the per-member sweep: nothing deleted and nothing
+    answered is retryable, not a clean miss."""
+    import utils
+    es = retry_module.mozart_es
+    _seed_location(es, (DAILY, FAILED))
+    es.es.bulk.return_value = _bulk_items({
+        DAILY: {"status": 429, "error": "cluster_block_exception"},
+        FAILED: {"status": 429, "error": "cluster_block_exception"}})
+
+    with pytest.raises(RuntimeError, match="skipped="):
+        utils.bulk_delete_by_id(es, ALIAS, PAYLOAD_ID)
+
+
+def test_bulk_delete_all_not_found_is_a_clean_miss(retry_module):
+    import utils
+    es = retry_module.mozart_es
+    _seed_location(es, (DAILY, FAILED))
+    es.es.bulk.return_value = _bulk_items({
+        DAILY: {"result": "not_found", "status": 404},
+        FAILED: {"result": "not_found", "status": 404}})
+
+    assert utils.bulk_delete_by_id(es, ALIAS, PAYLOAD_ID) == []
 
 
 # --------------------------------------------------------------------------
