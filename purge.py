@@ -8,7 +8,7 @@ from multiprocessing import Pool
 import osaka.main
 from hysds.celery import app
 from hysds.es_util import get_mozart_es, get_grq_es
-from utils import revoke, create_info_message_files
+from utils import bulk_delete_by_id, create_info_message_files, revoke
 
 LOG_FILE_NAME = 'purge.log'
 log_format = "[%(asctime)s: %(levelname)s/%(funcName)s] %(message)s"
@@ -147,12 +147,31 @@ def purge_products(query, component, operation, delete_from_obj_store=True):
                 logger.info('Revoking %s\n', uuid)
                 revoke(uuid, state)
 
-            # Delete job(s) from ES
-            results = es.search_by_id(index=index, id=payload_id, return_all=True, ignore=404)
-            for result in results:
-                logger.info('Removing document from index %s for %s', result['_id'], result['_index'])
-                es.delete_by_id(index=result['_index'], id=result['_id'], ignore=404)
-                logger.info('Removed %s from index: %s', result['_id'], result['_index'])
+            # Delete job(s) from ES. This used to pick the delete target from
+            # a near-realtime search's _index, which is stale while logstash is
+            # moving a job-failed doc between members of the alias: the delete
+            # then went to the index the doc had already left, the 404 was
+            # swallowed, and success was logged while the doc survived. Unlike
+            # the retry case there is no resubmit to mask it -- the job simply
+            # could not be purged. Sweep every member instead.
+            # Sweep the ALIAS (es_index), not result["_index"]: that is the
+            # concrete index off the search hit, and handing it to the sweep
+            # resolves to itself and degenerates to the old single delete.
+            # One bulk request per job rather than one delete per member:
+            # purge walks its selection serially, so the per-member cost is
+            # multiplied by the size of the purge.
+            try:
+                deleted_from = bulk_delete_by_id(es, es_index, payload_id)
+            except Exception as e:
+                # the sweep raises only when nothing could be deleted; one
+                # un-purgeable job must not abort the rest of the batch
+                logger.error('Could not purge %s from %s: %s', payload_id, es_index, e)
+                continue
+            if deleted_from:
+                logger.info('Removed %s from: %s', payload_id, ', '.join(deleted_from))
+            else:
+                logger.warning('No %s doc in any member of %s; nothing purged',
+                               payload_id, es_index)
         logger.info('Finished.')
 
 

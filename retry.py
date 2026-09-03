@@ -15,7 +15,11 @@ from hysds.orchestrator import run_job
 from hysds.log_utils import log_job_status
 from hysds.utils import datetime_iso_naive
 
-from utils import revoke, create_info_message_files
+from utils import (
+    create_info_message_files,
+    delete_by_id as sweep_delete_by_id,
+    revoke,
+)
 
 
 STATUS_ALIAS = app.conf["STATUS_ALIAS"]
@@ -50,6 +54,15 @@ class JobNotFoundError(Exception):
 @backoff.on_exception(backoff.expo, Exception, max_tries=10, max_value=64,
                       giveup=lambda e: isinstance(e, JobNotFoundError))
 def query_es_required(job_id):
+    # job.job_info.id is stamped once and reused by every attempt in a
+    # payload's lineage, so this can match more than one doc: an orphaned
+    # job_failed doc from a dead attempt alongside the live attempt's dated
+    # doc. Unsorted, hits[0] is shard order, and picking the orphan would
+    # revoke the wrong task and recompute retry_count backwards -- breaking
+    # the monotonicity the supersession guard and the orphan reaper rely on.
+    # Sort by retry_count first (retry.py increments it on every resubmit),
+    # then recency; unmapped_type keeps this working on a venue whose
+    # template does not declare the field.
     query_json = {
         "query": {
             "bool": {
@@ -57,27 +70,36 @@ def query_es_required(job_id):
                     {"term": {"job.job_info.id": job_id}}
                 ]
             }
-        }
+        },
+        "sort": [
+            {"job.retry_count": {"order": "desc", "missing": "_last",
+                                 "unmapped_type": "long"}},
+            {"@timestamp": {"order": "desc", "unmapped_type": "date"}},
+        ],
+        "size": 1,
     }
     result = mozart_es.search(index=JOB_STATUS_CURRENT, body=query_json)
-    if result['hits']['total']['value'] == 0:
+    total = result['hits']['total']['value']
+    if total == 0:
         raise JobNotFoundError(f"job id {job_id} not found in OpenSearch")
+    if total > 1:
+        # visible in retry.log, so the orphan rate is observable from the
+        # retry side without running a separate audit
+        logger.warning(
+            f"job id {job_id} matched {total} status docs; retrying the "
+            f"newest attempt. The others are leftovers from earlier attempts."
+        )
     return result
 
 
-@backoff.on_exception(backoff.expo, Exception, max_tries=10, max_value=64)
-def delete_by_id(index, _id):
-    # without ignore=[404], search_by_id raises ValueError on 0 hits (e.g. a
-    # concurrent retry already deleted the doc), which would churn through
-    # this backoff for minutes before failing the retry; an already-absent
-    # doc is a no-op here, so ask for the not-found sentinel and skip it
-    results = mozart_es.search_by_id(index=index, id=_id, return_all=True, ignore=[404])
-    for result in results:
-        if result.get("found") is False:
-            logger.info(f"No {_id} doc found in {index}; nothing to delete.")
-            continue
-        logger.info(f"Deleting job {result['_id']} in {result['_index']}")
-        mozart_es.delete_by_id(index=result['_index'], id=result['_id'], ignore=[404])
+def delete_by_id(index, _id, marks=None):
+    """Sweep every member behind `index` for `_id` on the mozart client.
+
+    The implementation lives in utils so purge.py uses the same one: it
+    carried the same defect, choosing its delete target from a near-realtime
+    search's _index.
+    """
+    return sweep_delete_by_id(mozart_es, index, _id, marks=marks)
 
 
 def _wait_for_lock_release(payload_id, task_id, timeout, max_interval):
@@ -176,6 +198,8 @@ def resubmit_jobs(context):
 
     not_found_job_ids = []
     errored_job_ids = []
+    skipped_job_ids = []      # declined before any delete: not a job, a retry job, budget spent
+    resubmitted_job_ids = []
     force_released_locks = []
     locks_still_held = []
     info_msgs = []
@@ -198,11 +222,13 @@ def resubmit_jobs(context):
 
             if not index.startswith("job"):
                 logger.error("Cannot retry a worker: %s" % _id)
+                skipped_job_ids.append(job_id)
                 continue
 
             # don't retry a retry
             if job_json['type'].startswith('job-lw-mozart-retry'):
                 logger.error("Cannot retry retry job %s. Skipping" % job_id)
+                skipped_job_ids.append(job_id)
                 continue
 
             # check retry_remaining_count
@@ -212,6 +238,7 @@ def resubmit_jobs(context):
                 else:
                     logger.error("For job {}, retry_count now is {}, retry_count_max limit of {} reached. Cannot retry again."
                                  .format(job_id, job_json['retry_count'], retry_count_max))
+                    skipped_job_ids.append(job_id)
                     continue
             else:
                 job_json['retry_count'] = 1
@@ -258,12 +285,20 @@ def resubmit_jobs(context):
             new_task_id = uuid()
             job_json['task_id'] = new_task_id
 
-            # delete old job status; we should pass in the job_status-current alias
-            # instead so that we make sure to properly handle the scenario where
-            # figaro rules are in place to auto retry jobs that fail due to spot termination.
-            # This may potentially cause duplicate records across the job_status
-            # and job_failed indices
-            delete_by_id(JOB_STATUS_CURRENT, _id)
+            # delete the old job status doc everywhere it lives: the sweep is
+            # alias-wide and realtime, so a job-failed doc that logstash has
+            # already moved out of the dated index is still deleted.
+            # A duplicate surviving this is the late-write variant.
+            delete_marks = []
+            deleted_from = delete_by_id(JOB_STATUS_CURRENT, _id, marks=delete_marks)
+            # Where each member's delete landed in its shard's sequence. The
+            # orphan reaper compares a job_failed doc's own _seq_no against
+            # the job_failed mark to tell, exactly, whether that doc was
+            # indexed before this sweep (the delete missed it) or after it
+            # (a late write re-created it). Timestamps cannot answer that:
+            # they say when a write was issued, not when it was indexed.
+            # One {index, seq_no, primary_term} entry per swept member.
+            job_json['job_info']['retry_delete'] = delete_marks
 
             # check if new queues, soft time limit, and time limit values were set
             new_job_queue = context.get("job_queue", "")
@@ -282,8 +317,9 @@ def resubmit_jobs(context):
                 job_json['job_info']['time_limit'] = int(new_time_limit)
 
             # Before re-queueing, check to see if the job was under the job_failed index. If so, need to
-            # move it back to job_status
-            if index.startswith("job_failed"):
+            # move it back to job_status. Decide from the realtime delete sweep
+            # as well, not only the search's (possibly stale) view of _index.
+            if index.startswith("job_failed") or any(m.startswith("job_failed") for m in deleted_from):
                 current_time = datetime.now(timezone.utc)
                 job_json['job_info']['index'] = f"job_status-{current_time.strftime('%Y.%m.%d')}"
 
@@ -303,6 +339,7 @@ def resubmit_jobs(context):
                                 soft_time_limit=job_json['job_info']['soft_time_limit'],
                                 priority=job_json['priority'],
                                 task_id=new_task_id)
+            resubmitted_job_ids.append(job_id)
             logger.info(f"re-submitted job_id={job_id}, payload_id={job_status_json['payload_id']}, task_id={new_task_id}")
         except JobNotFoundError as ex:
             logger.warning(str(ex))
@@ -337,14 +374,54 @@ def resubmit_jobs(context):
         info_msgs.append("Some retry jobs errored")
         info_msg_details += f"\n\n{errored_details}"
 
+    if len(retry_job_ids) > 1:
+        # The outcome sets, so an operator can act on a partial batch. Do NOT
+        # blindly re-run the same selection: that revokes the ids that already
+        # succeeded and increments their retry_count again.
+        # The summary line is kept under 35 characters: job_worker runs each
+        # one through get_short_error, which collapses anything longer. The
+        # breakdown and the warning go in the details file, which survives.
+        not_resubmitted = (len(skipped_job_ids) + len(not_found_job_ids)
+                           + len(errored_job_ids))
+        info_msgs.append(
+            f"Batch: {len(resubmitted_job_ids)} ok, {not_resubmitted} not; details"
+        )
+        info_msg_details += (
+            f"\n\nBatch retry: {len(resubmitted_job_ids)} resubmitted, "
+            f"{len(skipped_job_ids)} skipped, {len(not_found_job_ids)} not found, "
+            f"{len(errored_job_ids)} errored. Do not blindly re-run the same "
+            f"selection: that revokes the ids that already succeeded and "
+            f"increments their retry_count again."
+            f"\nResubmitted ({len(resubmitted_job_ids)}): "
+            f"{json.dumps(resubmitted_job_ids)}"
+            f"\nSkipped before any delete ({len(skipped_job_ids)}): "
+            f"{json.dumps(skipped_job_ids)}"
+        )
+
     if info_msgs:
         create_info_message_files(msg=info_msgs, msg_details=info_msg_details)
 
-    if len(retry_job_ids) == 1:
-        if not_found_job_ids:
-            raise RuntimeError(f"job id {not_found_job_ids[0]} not found")
-        if errored_job_ids:
-            raise RuntimeError(f"failed to resubmit job id {errored_job_ids[0]}; see traceback in the log")
+    # Not-found is benign inside a batch that did work (the job was purged,
+    # or a concurrent retry got there first). It is not benign when nothing
+    # was resubmitted at all: that is the shape of re-running a batch whose
+    # ids were swept and then errored, and it used to exit 0.
+    if not_found_job_ids and not resubmitted_job_ids:
+        raise RuntimeError(
+            f"{len(not_found_job_ids)} job id(s) not found and nothing was "
+            f"resubmitted: {not_found_job_ids}"
+        )
+
+    # errored_job_ids is heterogeneous. Most members failed BEFORE any delete
+    # (a raised sweep, by construction, destroyed nothing); some failed after
+    # it, at log_job_status or apply_async, and those no longer have a status
+    # doc anywhere. Either way the job must not exit 0. Figaro submits
+    # retry_job_id as a LIST even for a single job, and the old length gate
+    # let that case report job-completed while the job had silently vanished.
+    if errored_job_ids:
+        raise RuntimeError(
+            f"failed to resubmit {len(errored_job_ids)} of {len(retry_job_ids)} "
+            f"job id(s): {errored_job_ids}; see tracebacks in the log"
+        )
 
 
 if __name__ == "__main__":
