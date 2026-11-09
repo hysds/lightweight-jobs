@@ -105,6 +105,9 @@ class SerialPool:
     def close(self):
         pass
 
+    def join(self):
+        pass
+
 
 @pytest.fixture()
 def purge_module(tmp_path, monkeypatch):

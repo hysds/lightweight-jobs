@@ -46,6 +46,11 @@ MAX_PURGE_PASSES = 3
 # Most documents listed per section of the job's message details.
 MAX_LISTED = 100
 
+# Delete actions per bulk request. Keeps each request well under the request
+# size limit (10 MB on smaller AWS OpenSearch instance types, roughly 60,000
+# deletes) and the client timeout, and keeps each refresh=wait_for short.
+BULK_BATCH_SIZE = 2000
+
 # filter fields returned with the bulk API
 BULK_FILTER_PATH = [
     "items.delete.error.reason",
@@ -61,6 +66,15 @@ def read_context():
         return cxt
 
 
+def object_store_url(es_result):
+    """The dataset's object-store URL (its last non-http URL), or None."""
+    best = None
+    for url in es_result["_source"].get("urls", []):
+        if not url.startswith("http"):
+            best = url
+    return best
+
+
 def delete_from_object_store(es_result):
     """Remove a dataset's files from the object store.
 
@@ -71,12 +85,7 @@ def delete_from_object_store(es_result):
     it reports which files it left behind with no catalog entry.
     """
     _id = es_result["_id"]
-
-    best = None  # find the Best URL first
-    for url in es_result["_source"].get("urls", []):
-        if not url.startswith("http"):
-            best = url
-
+    best = object_store_url(es_result)
     if best is None:
         logger.warning("url not found for: %s" % _id)
         return None
@@ -128,6 +137,53 @@ def ingested_before(query, cutoff):
     return body
 
 
+def delete_batch(es, es_index, batch):
+    """Bulk-delete a batch of hits and return each one's outcome.
+
+    Returns {(_index, _id): item}. An item whose "result" is "deleted" or
+    "not_found" means the document is gone; any other item carries an
+    "error". If the bulk request itself fails (rejected as too large, or timed
+    out while the server may still be deleting), each document is looked up
+    by id: one the failed request did delete is still reported gone, so its
+    files are removed, and one still present gets an error and is retried on
+    the next pass. If the lookup fails too, the outcome is unknown and the
+    item is marked "unknown".
+    """
+    body = [{"delete": {"_index": hit["_index"], "_id": hit["_id"]}} for hit in batch]
+    try:
+        # wait_for: the deletes must be visible to the next pass's query, or
+        # it would find them again and delete them a second time
+        bulk_res = es.es.bulk(index=es_index, body=body, filter_path=BULK_FILTER_PATH,
+                              refresh="wait_for")
+        logger.info(json.dumps(bulk_res, indent=2))
+        return {(row["delete"].get("_index"), row["delete"].get("_id")): row["delete"]
+                for row in bulk_res["items"]}
+    except Exception as e:
+        bulk_error = f"{type(e).__name__}: {e}"
+        logger.error("bulk delete of %d document(s) failed: %s", len(batch), bulk_error)
+
+    keys = [(hit["_index"], hit["_id"]) for hit in batch]
+    try:
+        found = es.es.mget(body={"docs": [{"_index": i, "_id": d} for i, d in keys]},
+                           _source=False)
+        outcomes = {}
+        for doc in found["docs"]:
+            key = (doc.get("_index"), doc.get("_id"))
+            if doc.get("found") is False:
+                outcomes[key] = {"_index": key[0], "_id": key[1], "result": "not_found"}
+            else:
+                outcomes[key] = {"_index": key[0], "_id": key[1],
+                                 "error": {"reason": f"bulk request failed: {bulk_error}"}}
+        return outcomes
+    except Exception as e:
+        lookup_error = f"{type(e).__name__}: {e}"
+        logger.error("lookup after the failed bulk delete failed too: %s", lookup_error)
+        return {key: {"_index": key[0], "_id": key[1], "unknown": True,
+                      "error": {"reason": f"bulk request failed: {bulk_error}; "
+                                          f"lookup failed: {lookup_error}"}}
+                for key in keys}
+
+
 def query_unique(es, index, query, _source):
     """Run the query and drop repeated hits (same _index and _id)."""
     seen = set()
@@ -158,11 +214,13 @@ def purge_datasets(es, es_index, query, _source, delete_from_obj_store=True):
     """Delete every dataset the query matches, from ES and the object store.
 
     Only datasets ingested before the purge started are deleted (see
-    ingested_before). After each delete pass the query is run again, and
-    whatever it still matches is deleted in another pass, up to
-    MAX_PURGE_PASSES. The job fails, instead of exiting 0 with something left
-    behind, when datasets still match after the last pass or when a deleted
-    dataset's files could not be removed from the object store.
+    ingested_before). Each pass deletes in bulk requests of BULK_BATCH_SIZE,
+    removing each batch's files right after its documents are gone. After
+    each pass the query is run again, and whatever it still matches is
+    deleted in another pass, up to MAX_PURGE_PASSES. The job fails, instead
+    of exiting 0 with something left behind, when datasets still match after
+    the last pass, when a deleted dataset's files could not be removed from
+    the object store, or when a delete's outcome is unknown.
 
     A dataset's files are removed only once its document is gone, so a
     document that could not be deleted keeps its files, and the next pass, or
@@ -176,60 +234,66 @@ def purge_datasets(es, es_index, query, _source, delete_from_obj_store=True):
 
     purged = {}            # _index -> documents this job deleted
     already_gone = {}      # _index -> documents found already deleted
-    failed_deletions = {}  # (_index, _id) -> the latest failed bulk item
+    failed_deletions = {}  # (_index, _id) -> the latest failed delete item
     file_failures = []     # deleted datasets whose files could not be removed
     remaining = []
 
-    for pass_num in range(1, MAX_PURGE_PASSES + 2):
-        hits = query_unique(es, es_index, query, _source)
-        if not hits:
-            break
-        if pass_num > MAX_PURGE_PASSES:
-            remaining = hits
-            break
-        if pass_num > 1:
-            logger.warning("%d document(s) still match the query; delete pass %d of %d",
-                           len(hits), pass_num, MAX_PURGE_PASSES)
+    pool = None
+    if delete_from_obj_store is True:
+        # Started before anything is deleted, so a host that can't start the
+        # pool fails the job while every dataset still has its document.
+        pool = Pool(processes=max(1, (psutil.cpu_count() or 1) - 2))
+    else:
+        logger.info("skip purging datasets from object store. delete_from_object_store=False")
+    try:
+        for pass_num in range(1, MAX_PURGE_PASSES + 2):
+            hits = query_unique(es, es_index, query, _source)
+            if not hits:
+                break
+            if pass_num > MAX_PURGE_PASSES:
+                remaining = hits
+                break
+            if pass_num > 1:
+                logger.warning("%d document(s) still match the query; delete pass %d of %d",
+                               len(hits), pass_num, MAX_PURGE_PASSES)
 
-        body = [{
-            "delete": {"_index": hit["_index"], "_id": hit["_id"]}
-        } for hit in hits]
-        # wait_for: the deletes must be visible to the next pass's query, or
-        # it would find them again and delete them a second time
-        bulk_res = es.es.bulk(index=es_index, body=body, filter_path=BULK_FILTER_PATH,
-                              refresh="wait_for")
-        logger.info(json.dumps(bulk_res, indent=2))
+            for start in range(0, len(hits), BULK_BATCH_SIZE):
+                batch = hits[start:start + BULK_BATCH_SIZE]
+                outcomes = delete_batch(es, es_index, batch)
+                gone_hits = []
+                for hit in batch:
+                    key = (hit["_index"], hit["_id"])
+                    item = outcomes.get(key) or {
+                        "_index": key[0], "_id": key[1],
+                        "error": {"reason": "no result for this document in the bulk response"}}
+                    result = item.get("result")
+                    if result in ("deleted", "not_found"):
+                        counts = purged if result == "deleted" else already_gone
+                        counts[key[0]] = counts.get(key[0], 0) + 1
+                        logger.info("%s from ES: %s",
+                                    "deleted" if result == "deleted" else "already deleted", key[1])
+                        failed_deletions.pop(key, None)
+                        gone_hits.append(hit)
+                    else:
+                        if item.get("unknown"):
+                            item = {**item, "url": object_store_url(hit)}
+                        failed_deletions[key] = item
 
-        hits_by_key = {(hit["_index"], hit["_id"]): hit for hit in hits}
-        gone_hits = []
-        for row in bulk_res["items"]:
-            item = row["delete"]
-            key = (item.get("_index"), item.get("_id"))
-            result = item.get("result")
-            if result in ("deleted", "not_found"):
-                counts = purged if result == "deleted" else already_gone
-                counts[key[0]] = counts.get(key[0], 0) + 1
-                logger.info("%s from ES: %s",
-                            "deleted" if result == "deleted" else "already deleted", key[1])
-                failed_deletions.pop(key, None)
-                if key in hits_by_key:
-                    gone_hits.append(hits_by_key[key])
-            else:
-                failed_deletions[key] = item
+                if pool is not None and gone_hits:
+                    logger.info("purging datasets from object store: ")
+                    results = pool.map(delete_from_object_store, gone_hits)  # deleting objects from storage (s3, etc.)
+                    file_failures.extend(r for r in results if r)
+    finally:
+        if pool is not None:
+            pool.close()
+            pool.join()
 
-        if delete_from_obj_store is not True:
-            logger.info("skip purging datasets from object store. delete_from_object_store=False")
-        elif gone_hits:
-            logger.info("purging datasets from object store: ")
-            with Pool(processes=psutil.cpu_count() - 2) as p:
-                results = p.map(delete_from_object_store, gone_hits)  # deleting objects from storage (s3, etc.)
-            file_failures.extend(r for r in results if r)
-
+    unknown = [item for item in failed_deletions.values() if item.get("unknown")]
     msg_details = ""
     if purged:
         msg_details += _counts("Datasets purged from ES", purged)
     if already_gone:
-        msg_details += "\n" + _counts("Datasets already deleted from ES by something else", already_gone)
+        msg_details += "\n" + _counts("Datasets found already deleted from ES", already_gone)
     if failed_deletions:
         failures = list(failed_deletions.values())
         msg_details += _listing("Datasets failed to purge from ES", failures)
@@ -256,6 +320,9 @@ def purge_datasets(es, es_index, query, _source, delete_from_obj_store=True):
                         f"{MAX_PURGE_PASSES} delete passes")
     if file_failures:
         problems.append(f"{len(file_failures)} deleted dataset(s) left files in the object store")
+    if unknown:
+        problems.append(f"{len(unknown)} dataset(s) have an unknown delete outcome; check their "
+                        "documents and files")
     if problems:
         raise RuntimeError("; ".join(problems))
 

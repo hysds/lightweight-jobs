@@ -53,7 +53,12 @@ class FakeGrq:
     twice, as a page overlap would). `undeletable` ids answer every delete
     with an error, as a write-blocked index would. `on_bulk`, if set, runs
     before each bulk request is applied, to change the store underneath it.
-    The query honors the purge's ingest cutoff the way OpenSearch would.
+    `bulk_faults` scripts each bulk call in turn: None (normal), "rejected"
+    (raises before deleting anything, as a too-large request is) or
+    "timeout" (deletes, then raises, as a client timeout while the server
+    keeps working does). `mget_fails` makes the by-id lookup raise. `events`
+    records bulk calls and file removals in order. The query honors the
+    purge's ingest cutoff the way OpenSearch would.
     """
 
     def __init__(self, docs, query_plan=(), undeletable=()):
@@ -63,9 +68,13 @@ class FakeGrq:
         self.query_plan = list(query_plan)
         self.undeletable = set(undeletable)
         self.on_bulk = None
+        self.bulk_faults = []
+        self.mget_fails = False
+        self.events = []
         self.queries = []
         self.es = MagicMock(name="client")
         self.es.bulk.side_effect = self._bulk
+        self.es.mget.side_effect = self._mget
 
     def add(self, doc):
         if isinstance(doc, str):
@@ -90,6 +99,10 @@ class FakeGrq:
         return hits
 
     def _bulk(self, index, body, filter_path=None, refresh=None):
+        self.events.append(("bulk", len(body)))
+        fault = self.bulk_faults.pop(0) if self.bulk_faults else None
+        if fault == "rejected":
+            raise RuntimeError("TransportError(413, 'Request Entity Too Large')")
         if self.on_bulk:
             self.on_bulk(self)
         items = []
@@ -102,7 +115,16 @@ class FakeGrq:
                 items.append({"delete": {**target, "result": "deleted"}})
             else:
                 items.append({"delete": {**target, "result": "not_found"}})
+        if fault == "timeout":
+            raise TimeoutError("ConnectionTimeout caused by ReadTimeout")
         return {"items": items}
+
+    def _mget(self, body, _source=None):
+        if self.mget_fails:
+            raise ConnectionError("lookup unavailable")
+        return {"docs": [{"_index": d["_index"], "_id": d["_id"],
+                          "found": (d["_index"], d["_id"]) in self.store}
+                         for d in body["docs"]]}
 
 
 @pytest.fixture()
@@ -113,6 +135,7 @@ def purge(purge_module, monkeypatch):
 
 def _purge(purge, grq, delete_from_obj_store=True, query=MATCH_ALL):
     purge.get_grq_es = lambda: grq
+    purge.osaka.main.rmall.side_effect = lambda url: grq.events.append(("rmall", url))
     purge.purge_products(query, "tosca", "purge", delete_from_obj_store)
 
 
@@ -215,7 +238,7 @@ def test_not_found_is_treated_as_already_deleted(purge):
     details = _details()
     assert "failed to purge" not in details
     assert f"Datasets purged from ES:\n{MONTHLY} - 1" in details
-    assert f"Datasets already deleted from ES by something else:\n{MONTHLY} - 1" in details
+    assert f"Datasets found already deleted from ES:\n{MONTHLY} - 1" in details
     # b's catalog entry is gone, so its files must go too
     assert _purged_files(purge) == _files("a", "b")
 
@@ -259,10 +282,11 @@ def test_object_store_failures_are_listed_and_fail_the_job(purge):
     def rmall(url):
         if url.endswith("/b"):
             raise OSError("AccessDenied")
-    purge.osaka.main.rmall.side_effect = rmall
 
+    purge.get_grq_es = lambda: grq
+    purge.osaka.main.rmall.side_effect = rmall
     with pytest.raises(RuntimeError, match="1 deleted dataset.*left files"):
-        _purge(purge, grq)
+        purge.purge_products(MATCH_ALL, "tosca", "purge", True)
 
     # the failure did not stop the other datasets' files from being removed
     assert _purged_files(purge) == _files("a", "b", "c")
@@ -288,6 +312,107 @@ def test_no_matches_is_a_clean_no_op(purge):
 
     grq.es.bulk.assert_not_called()
     assert not os.path.exists("_alt_msg_details.txt")
+
+
+class RecordingPool:
+    """Pool stand-in that records its size and when it was started."""
+
+    def __init__(self, grq, processes=None):
+        self.processes = processes
+        grq.events.append(("pool", processes))
+
+    def map(self, func, iterable):
+        return [func(item) for item in iterable]
+
+    def close(self):
+        pass
+
+    def join(self):
+        pass
+
+
+@pytest.mark.parametrize("cpus", [1, 2, None])
+def test_the_pool_has_a_process_and_starts_before_any_delete(purge, monkeypatch, cpus):
+    grq = FakeGrq(["a"])
+    monkeypatch.setattr(purge.psutil, "cpu_count", lambda: cpus)
+    purge.Pool = lambda processes=None: RecordingPool(grq, processes)
+
+    _purge(purge, grq)
+
+    assert grq.events[0] == ("pool", 1)
+    assert grq.events[1] == ("bulk", 1)
+    assert grq.store == {}
+
+
+def test_a_pool_that_cannot_start_fails_before_anything_is_deleted(purge):
+    grq = FakeGrq(["a", "b"])
+
+    def broken_pool(processes=None):
+        raise ValueError("Number of processes must be at least 1")
+    purge.Pool = broken_pool
+
+    with pytest.raises(ValueError):
+        _purge(purge, grq)
+
+    grq.es.bulk.assert_not_called()
+    assert len(grq.store) == 2
+
+
+def test_each_pass_deletes_in_batches_and_removes_files_per_batch(purge, monkeypatch):
+    monkeypatch.setattr(purge, "BULK_BATCH_SIZE", 2)
+    grq = FakeGrq(["a", "b", "c", "d", "e"])
+
+    _purge(purge, grq)
+
+    assert grq.store == {}
+    assert grq.events == [
+        ("bulk", 2), ("rmall", "s3://bucket/products/a"), ("rmall", "s3://bucket/products/b"),
+        ("bulk", 2), ("rmall", "s3://bucket/products/c"), ("rmall", "s3://bucket/products/d"),
+        ("bulk", 1), ("rmall", "s3://bucket/products/e"),
+    ]
+    assert all(c.kwargs["refresh"] == "wait_for" for c in grq.es.bulk.call_args_list)
+
+
+def test_a_bulk_request_that_times_out_after_deleting_still_removes_the_files(purge, monkeypatch):
+    monkeypatch.setattr(purge, "BULK_BATCH_SIZE", 2)
+    grq = FakeGrq(["a", "b", "c"])
+    grq.bulk_faults = ["timeout"]  # the first batch is deleted, then the client times out
+
+    _purge(purge, grq)
+
+    assert grq.store == {}
+    assert _purged_files(purge) == _files("a", "b", "c")
+    details = _details()
+    assert "failed to purge" not in details
+    assert f"Datasets found already deleted from ES:\n{MONTHLY} - 2" in details
+
+
+def test_a_rejected_bulk_request_is_retried_on_the_next_pass(purge, monkeypatch):
+    monkeypatch.setattr(purge, "BULK_BATCH_SIZE", 2)
+    grq = FakeGrq(["a", "b", "c"])
+    grq.bulk_faults = ["rejected"]  # the first batch is rejected; nothing deleted
+
+    _purge(purge, grq)
+
+    assert grq.store == {}
+    assert _purged_files(purge) == _files("a", "b", "c")
+    assert "failed to purge" not in _details()
+
+
+def test_an_unknown_delete_outcome_fails_the_job_and_lists_the_files(purge):
+    grq = FakeGrq(["a", "b"])
+    grq.bulk_faults = ["timeout"]  # both deleted, then the client times out
+    grq.mget_fails = True          # and the lookup fails too
+
+    with pytest.raises(RuntimeError, match="2 dataset.*unknown delete outcome"):
+        _purge(purge, grq)
+
+    # the documents are gone, but nothing confirmed it, so their files are kept and listed
+    assert grq.store == {}
+    assert _purged_files(purge) == []
+    failed = _section(_details(), "Datasets failed to purge from ES")
+    assert [(f["_id"], f["url"], f["unknown"]) for f in failed] == [
+        ("a", "s3://bucket/products/a", True), ("b", "s3://bucket/products/b", True)]
 
 
 def test_job_purge_ends_its_sort_on_payload_id_and_visits_each_job_once(purge):
