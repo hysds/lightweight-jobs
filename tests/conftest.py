@@ -1,8 +1,8 @@
-"""Test harness for retry.py.
+"""Test harness for retry.py and purge.py.
 
-retry.py is a top-level script that, at import time, pulls in the hysds
+Both are top-level scripts that, at import time, pull in the hysds
 runtime (`from hysds.celery import app` reads a celeryconfig that only exists
-on a cluster), builds an OpenSearch client, and calls logging.basicConfig with
+on a cluster), build OpenSearch clients, and call logging.basicConfig with
 a file in the CWD. Everything it imports is therefore stubbed into sys.modules
 BEFORE the import, and backoff is replaced with a passthrough so failure-path
 tests do not sleep through a real exponential backoff.
@@ -27,6 +27,7 @@ def _stub(name, **attrs):
 
 
 mozart_es_mock = MagicMock(name="mozart_es")
+grq_es_mock = MagicMock(name="grq_es")
 
 # The REAL backoff library is used, not a passthrough stub: retry.py's retry
 # semantics are part of what these tests are checking, and a neutralised
@@ -39,18 +40,26 @@ _app = types.SimpleNamespace(
     conf={"STATUS_ALIAS": "job_status",
           "JOB_LOCK_HEARTBEAT_INTERVAL": 30,
           "JOB_LOCK_STALE_CHECK_RETRIES": 3,
-          "JOB_LOCK_REDELIVERY_BUFFER_TIME": 10},
+          "JOB_LOCK_REDELIVERY_BUFFER_TIME": 10,
+          "DATASET_ALIAS": "grq"},
     AsyncResult=MagicMock(),
     control=MagicMock(),
 )
 # retry.py uses app.conf["STATUS_ALIAS"] and app.conf.get(...) - a dict serves both
 _stub("hysds.celery", app=_app)
-_stub("hysds.es_util", get_mozart_es=lambda: mozart_es_mock)
+_stub("hysds.es_util", get_mozart_es=lambda: mozart_es_mock,
+      get_grq_es=lambda: grq_es_mock)
 _stub("hysds.lock", JobLock=MagicMock())
 _stub("hysds.orchestrator", run_job=MagicMock())
 _stub("hysds.log_utils", log_job_status=MagicMock())
 _stub("hysds.utils", datetime_iso_naive=lambda: "2026-01-01T00:00:00")
 _stub("celery", uuid=lambda: "new-task-uuid")
+# purge.py's object-store client and CPU count; neither is installed for the
+# test run, and the purge fixture rebinds both per test
+_stub("osaka")
+_stub("osaka.main", rmall=MagicMock(name="rmall"))
+sys.modules["osaka"].main = sys.modules["osaka.main"]
+_stub("psutil", cpu_count=lambda: 4)
 # utils is NOT stubbed: retry.py's sweep lives there now, and stubbing the
 # module would replace the code under test with a mock. Its own imports are
 # satisfiable here (backoff, redis, and the stubbed hysds.celery), and the
@@ -76,3 +85,35 @@ def retry_module(tmp_path, monkeypatch):
     retry.create_info_message_files = MagicMock(name="create_info_message_files")
     retry.uuid = lambda: "new-task-uuid"
     yield retry
+
+
+class SerialPool:
+    """multiprocessing.Pool stand-in: map runs in-process, so mocks see the calls."""
+
+    def __init__(self, processes=None):
+        self.processes = processes
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+    def map(self, func, iterable):
+        return [func(item) for item in iterable]
+
+    def close(self):
+        pass
+
+
+@pytest.fixture()
+def purge_module(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)          # purge.log and the message files land here
+    if REPO_ROOT not in sys.path:
+        sys.path.insert(0, REPO_ROOT)
+    sys.modules.pop("purge", None)       # fresh import per test
+    import purge
+
+    purge.Pool = SerialPool
+    purge.osaka.main.rmall = MagicMock(name="rmall")
+    yield purge

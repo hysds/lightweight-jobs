@@ -18,6 +18,34 @@ logger = logging
 tosca_es = get_grq_es()
 mozart_es = get_mozart_es()
 
+# A total order for the purge query. Below 10,000 hits SearchUtility.query()
+# pages with from/size, and without a total order consecutive pages can
+# overlap and skip documents: hits that tie on score are not guaranteed to
+# come back in the same order on every page request (a different shard copy
+# can answer each one). The overlap shows up as not_found on the duplicate
+# deletes; the skipped documents are never deleted. The job iterator sorts on
+# the same two fields. unmapped_type keeps an alias member that lacks a field
+# from failing its shard, which would drop that member's hits from the result.
+QUERY_SORT = [
+    {"@timestamp": {"order": "desc", "unmapped_type": "date"}},
+    {"id.keyword": {"order": "asc", "unmapped_type": "keyword"}},
+]
+
+# Delete passes a dataset purge makes before it fails on documents that still
+# match its query.
+MAX_PURGE_PASSES = 3
+
+# Most leftover documents listed in the job's message details.
+MAX_LISTED_REMAINING = 100
+
+# filter fields returned with the bulk API
+BULK_FILTER_PATH = [
+    "items.delete.error.reason",
+    "items.delete._id",
+    "items.delete._index",
+    "items.delete.result"
+]
+
 
 def read_context():
     with open('_context.json') as f:
@@ -43,6 +71,119 @@ def delete_from_object_store(es_result):
     return dataset
 
 
+def sorted_query(query):
+    """Return a copy of the query that sorts on QUERY_SORT.
+
+    A sort the caller supplied is replaced: a purge visits every match, so
+    order matters only for paging, and a caller's sort may have no unique
+    tiebreaker.
+    """
+    body = dict(query)
+    body["sort"] = QUERY_SORT
+    return body
+
+
+def query_unique(es, index, query, _source):
+    """Run the query and drop repeated hits (same _index and _id)."""
+    seen = set()
+    hits = []
+    for hit in es.query(index=index, body=query, _source=_source):
+        key = (hit["_index"], hit["_id"])
+        if key not in seen:
+            seen.add(key)
+            hits.append(hit)
+    return hits
+
+
+def purge_datasets(es, es_index, query, _source, delete_from_obj_store=True):
+    """Delete every dataset the query matches, from ES and the object store.
+
+    After each delete pass the query is run again, and whatever it still
+    matches is deleted in another pass, up to MAX_PURGE_PASSES. Documents
+    that still match after the last pass fail the job instead of letting it
+    exit 0 with datasets left behind.
+
+    A dataset's files are removed from the object store only once its
+    document has been deleted, so a document that could not be deleted keeps
+    its files, and the next pass, or a rerun, retries both.
+    """
+    dataset_purge_stats = {}
+    deleted_docs_count = 0
+    failed_deletions = {}  # (_index, _id) -> the latest failed bulk item
+    remaining = []
+
+    for pass_num in range(1, MAX_PURGE_PASSES + 2):
+        hits = query_unique(es, es_index, query, _source)
+        if not hits:
+            break
+        if pass_num > MAX_PURGE_PASSES:
+            remaining = hits
+            break
+        if pass_num > 1:
+            logger.warning("%d document(s) still match the query; delete pass %d of %d",
+                           len(hits), pass_num, MAX_PURGE_PASSES)
+
+        body = [{
+            "delete": {"_index": hit["_index"], "_id": hit["_id"]}
+        } for hit in hits]
+        # wait_for: the deletes must be visible to the next pass's query, or
+        # it would find them again and delete them a second time
+        bulk_res = es.es.bulk(index=es_index, body=body, filter_path=BULK_FILTER_PATH,
+                              refresh="wait_for")
+        logger.info(json.dumps(bulk_res, indent=2))
+
+        hits_by_key = {(hit["_index"], hit["_id"]): hit for hit in hits}
+        deleted_hits = []
+        for row in bulk_res["items"]:
+            item = row["delete"]
+            key = (item.get("_index"), item.get("_id"))
+            if item.get("result") == "deleted":
+                deleted_docs_count += 1
+                logger.info("deleted from ES: %s" % item["_id"])
+                dataset_purge_stats[key[0]] = dataset_purge_stats.get(key[0], 0) + 1
+                failed_deletions.pop(key, None)
+                if key in hits_by_key:
+                    deleted_hits.append(hits_by_key[key])
+            else:
+                failed_deletions[key] = item
+
+        if delete_from_obj_store is not True:
+            logger.info("skip purging datasets from object store. delete_from_object_store=False")
+        elif deleted_hits:
+            logger.info("purging datasets from object store: ")
+            with Pool(processes=psutil.cpu_count() - 2) as p:
+                p.map(delete_from_object_store, deleted_hits)  # deleting objects from storage (s3, etc.)
+
+    msg_details = ""
+    if deleted_docs_count > 0:
+        msg_details += "Datasets purged from ES:\n"
+        for k, v in dataset_purge_stats.items():
+            msg_details += f"{k} - {v}\n"
+    if failed_deletions:
+        msg_details += "\n\n"
+        msg_details += "Datasets failed to purge from ES:\n"
+        msg_details += json.dumps(list(failed_deletions.values()))
+        logger.warning("datasets failed to delete: ")
+        logger.warning(json.dumps(list(failed_deletions.values())))
+    if remaining:
+        listed = [{"_index": hit["_index"], "_id": hit["_id"]}
+                  for hit in remaining[:MAX_LISTED_REMAINING]]
+        msg_details += "\n\n"
+        msg_details += (f"{len(remaining)} dataset(s) still match the query after "
+                        f"{MAX_PURGE_PASSES} delete passes")
+        if len(remaining) > len(listed):
+            msg_details += f" (first {len(listed)} listed)"
+        msg_details += ":\n" + json.dumps(listed)
+    if msg_details:
+        create_info_message_files(msg_details=msg_details)
+    else:
+        logger.info("No datasets matched the query; nothing to purge.")
+
+    if remaining:
+        raise RuntimeError(f"{len(remaining)} dataset(s) still match the purge query after "
+                           f"{MAX_PURGE_PASSES} delete passes")
+
+
 def purge_products(query, component, operation, delete_from_obj_store=True):
     """
     Iterator used to iterate across a query result and submit jobs for every hit
@@ -63,62 +204,12 @@ def purge_products(query, component, operation, delete_from_obj_store=True):
         es_index = app.conf["DATASET_ALIAS"]
         _source = ["dataset", "urls"]
 
-    results = es.query(index=es_index, body=query, _source=_source)  # Querying for products
-
-    # filter fields returned with the bulk API
-    filter_path = [
-        "items.delete.error.reason",
-        "items.delete._id",
-        "items.delete._index",
-        "items.delete.result"
-    ]
+    query = sorted_query(query)
 
     if component == 'tosca':
-        num_processes = psutil.cpu_count() - 2
-        p = Pool(processes=num_processes)
-
-        body = [{
-            "delete": {"_index": row["_index"], "_id": row["_id"]}
-        } for row in results]
-        bulk_res = es.es.bulk(index=es_index, body=body, filter_path=filter_path)
-        logger.info(json.dumps(bulk_res, indent=2))
-
-        if delete_from_obj_store is True:
-            logger.info("purging datasets from object store: ")
-            p.map(delete_from_object_store, results)  # deleting objects from storage (s3, etc.)
-        else:
-            logger.info("skip purging datasets from object store. delete_from_object_store=False")
-        p.close()
-
-        dataset_purge_stats = {}
-        deleted_docs_count = 0
-        failed_deletions = []
-        for row in bulk_res["items"]:
-            if row["delete"].get("result", None) == "deleted":
-                deleted_docs_count += 1
-                _index = row["delete"]["_index"]
-                logger.info("deleted from ES: %s" % row["delete"]["_id"])
-                if _index not in dataset_purge_stats:
-                    dataset_purge_stats[_index] = 1
-                else:
-                    dataset_purge_stats[_index] += 1
-            else:
-                failed_deletions.append(row["delete"])
-
-        if deleted_docs_count or failed_deletions:
-            msg_details = ""
-            if deleted_docs_count > 0:
-                msg_details += "Datasets purged from ES:\n"
-                for k, v in dataset_purge_stats.items():
-                    msg_details += f"{k} - {v}\n"
-            if len(failed_deletions) > 0:
-                msg_details += "\n\n"
-                msg_details += "Datasets failed to purge from ES:\n"
-                msg_details += json.dumps(failed_deletions)
-                logger.warning("datasets failed to delete: ")
-                logger.warning(json.dumps(failed_deletions))
-            create_info_message_files(msg_details=msg_details)
+        purge_datasets(es, es_index, query, _source, delete_from_obj_store)
     else:
+        results = query_unique(es, es_index, query, _source)  # Querying for jobs
         purge = True if operation == 'purge' else False  # purge job from index
 
         for result in results:
