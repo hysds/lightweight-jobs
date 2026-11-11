@@ -48,6 +48,13 @@
       "type": "text",
       "from": "submitter",
       "optional": true
+    },
+    {
+      "name": "workflow_retry",
+      "placeholder": "internal: set only by the workflow consumer; leave empty",
+      "type": "boolean",
+      "from": "submitter",
+      "optional": true
     }
   ]
 }

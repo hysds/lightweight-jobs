@@ -163,6 +163,21 @@ def _wait_for_lock_release(payload_id, task_id, timeout, max_interval):
     return outcome["result"]
 
 
+def is_workflow_retry(context):
+    """True if the retry context carries ``workflow_retry`` (set only by the workflow_rules
+    consumer). Accepts a JSON bool or the strings the REST form path can produce."""
+    v = context.get("workflow_retry")
+    return v is True or (isinstance(v, str) and v.strip().lower() == "true")
+
+
+def workflow_tag_of(doc_source):
+    """The workflow tag of a job_status doc, wherever the writer put it (top level, on the
+    job dict, or on job_info), else None."""
+    job = doc_source.get("job") or {}
+    return (doc_source.get("workflow") or job.get("workflow")
+            or (job.get("job_info") or {}).get("workflow") or None)
+
+
 def get_new_job_priority(old_priority, increment_by, new_priority):
     if increment_by is not None:
         priority = int(old_priority) + int(increment_by)
@@ -225,6 +240,17 @@ def resubmit_jobs(context):
                 skipped_job_ids.append(job_id)
                 continue
 
+            # D5 guard (workflow contract 12.4): a workflow-tagged job is retried by its workflow
+            # (the consumer sets workflow_retry), never by user rules or the UI. Decided before
+            # anything is revoked or deleted.
+            wf_tag = workflow_tag_of(doc["_source"])
+            if wf_tag and not is_workflow_retry(context):
+                logger.error(f"Skipping retry of workflow job {job_id} (run_id={wf_tag.get('run_id')} "
+                             f"step_id={wf_tag.get('step_id')}): workflow jobs are retried by their "
+                             f"workflow (retry_on/max_retries), not by user rules or the UI")
+                skipped_job_ids.append(job_id)
+                continue
+
             # don't retry a retry
             if job_json['type'].startswith('job-lw-mozart-retry'):
                 logger.error("Cannot retry retry job %s. Skipping" % job_id)
@@ -245,7 +271,7 @@ def resubmit_jobs(context):
             job_json["job_info"]["dedup"] = False
 
             # clean up job execution info
-            for i in ('duration', 'execute_node', 'facts', 'job_dir', 'job_url', 'metrics', 'pid', 'public_ip',
+            for i in ('duration', 'error_class', 'execute_node', 'facts', 'job_dir', 'job_url', 'metrics', 'pid', 'public_ip',
                       'status', 'stderr', 'stdout', 'time_end', 'time_queued', 'time_start'):
                 if i in job_json.get('job_info', {}):
                     del job_json['job_info'][i]

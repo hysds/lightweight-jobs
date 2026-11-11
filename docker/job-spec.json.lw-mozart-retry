@@ -33,6 +33,10 @@
     {
       "name": "job_queue",
       "destination": "context"
+    },
+    {
+      "name": "workflow_retry",
+      "destination": "context"
     }
   ]
 }
