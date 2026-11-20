@@ -18,7 +18,11 @@ def set_redis_revoked_task_pool():
     global REVOKED_TASK_POOL
     if REVOKED_TASK_POOL is None:
         REVOKED_TASK_POOL = BlockingConnectionPool.from_url(
-            app.conf.REDIS_JOB_STATUS_URL)
+            app.conf.REDIS_JOB_STATUS_URL,
+            socket_timeout=app.conf.get("REDIS_SOCKET_TIMEOUT", 30),
+            socket_connect_timeout=app.conf.get("REDIS_SOCKET_CONNECT_TIMEOUT", 10),
+            socket_keepalive=True,
+            health_check_interval=app.conf.get("REDIS_HEALTH_CHECK_INTERVAL", 30))
 
 
 @backoff.on_exception(backoff.expo,
